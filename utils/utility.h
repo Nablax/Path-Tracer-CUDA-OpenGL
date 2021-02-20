@@ -20,9 +20,9 @@ namespace utils{
     using point3 = vectorgpu::vec3;
     using vec3 = vectorgpu::vec3;
 
-    using std::shared_ptr;
-    using std::make_shared;
-    using std::sqrt;
+//    using std::shared_ptr;
+//    using std::make_shared;
+//    using std::sqrt;
 
 // Utility Functions
 
