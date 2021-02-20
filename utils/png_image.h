@@ -22,7 +22,7 @@ public:
     PngImage& operator=(PngImage& other) = delete;
 
     void saveColor(color clr, int row, int col, int samples_per_pixel = 1){
-        double crate = 1.0 / samples_per_pixel;
+        float crate = 1.0f / samples_per_pixel;
         getIdx(row, col, 0) = clamp((clr.x() * crate), 0, 0.999) * 256;
         getIdx(row, col, 1) = clamp((clr.y() * crate), 0, 0.999) * 256;
         getIdx(row, col, 2) = clamp((clr.z() * crate), 0, 0.999) * 256;
@@ -42,7 +42,7 @@ private:
     unsigned char* mData;
     int mDataW, mDataH, mDataN;
     int mImgSize;
-    const double color_scale = 255.999, alpha_scale = 255.999;
+    const float color_scale = 255.999, alpha_scale = 255.999;
     unsigned char& getIdx(int row, int col, int rgba){
         return *(mData + (row * mDataW + col) * mDataN + rgba);
     }

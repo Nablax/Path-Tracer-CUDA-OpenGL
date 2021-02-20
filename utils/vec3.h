@@ -11,7 +11,7 @@ namespace vectorgpu{
         public:
         float e[4];
         __host__ __device__ inline vec3():e{0, 0, 0}{}
-        __host__ __device__ inline vec3(float e1, float e2, float e3, double e4 = 0): e{e1, e2, e3}{}
+        __host__ __device__ inline vec3(float e1, float e2, float e3, float e4 = 0): e{e1, e2, e3}{}
         __host__ __device__ inline float x() const { return e[0];};
         __host__ __device__ inline float y() const { return e[1];};
         __host__ __device__ inline float z() const { return e[2];};

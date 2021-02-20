@@ -6,13 +6,13 @@
 #define CUDARAYTRACER_GLOBAL_VARIABLES_H
 
 namespace globalvar{
-    const double kInfinity = std::numeric_limits<double>::infinity();
-    const double kPi = 3.1415926535897932385;
-    const double kSqrt2Div2 = 0.70710678;
-    const double kSqrt3Div3 = 0.57735;
-    const double kAspectRatio = 3.0 / 2.0;
-    const double kDegToRad = 0.01745329252;
-    const double kRadToDeg = 57.295779513;
+    const float kInfinity = std::numeric_limits<float>::infinity();
+    const float kPi = 3.1415926535897932385;
+    const float kSqrt2Div2 = 0.70710678;
+    const float kSqrt3Div3 = 0.57735;
+    const float kAspectRatio = 3.0 / 2.0;
+    const float kDegToRad = 0.01745329252;
+    const float kRadToDeg = 57.295779513;
     const int kFrameWidth = 1200;
     const int kFrameHeight = static_cast<int>(kFrameWidth / kAspectRatio);
     const int kSpp = 500;

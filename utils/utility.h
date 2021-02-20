@@ -26,33 +26,33 @@ namespace utils{
 
 // Utility Functions
 
-    inline double degrees_to_radians(double degrees) {
+    inline float degrees_to_radians(float degrees) {
         return degrees * kDegToRad;
     }
 
-    inline double clamp(double x, double min, double max) {
+    inline float clamp(float x, float min, float max) {
         if (x < min) return min;
         if (x > max) return max;
         return x;
     }
 
-    inline double random_double() {
-        static std::uniform_real_distribution<double> distribution(0.0, 1.0);
+    inline float random_float() {
+        static std::uniform_real_distribution<float> distribution(0.0, 1.0);
         static std::mt19937 generator;
         return distribution(generator);
     }
 
-    inline double random_double(double min, double max) {
+    inline float random_float(float min, float max) {
         // Returns a random real in [min,max).
-        return min + (max-min)*random_double();
+        return min + (max-min)*random_float();
     }
 
 //    inline vec3 random_vec3(){
-//        return {random_double(), random_double(), random_double()};
+//        return {random_float(), random_float(), random_float()};
 //    }
 //
-//    inline vec3 random_vec3(double min, double max){
-//        return {random_double(min,max), random_double(min,max), random_double(min,max)};
+//    inline vec3 random_vec3(float min, float max){
+//        return {random_float(min,max), random_float(min,max), random_float(min,max)};
 //    }
 
 //    vec3 random_in_unit_sphere() {
@@ -64,8 +64,8 @@ namespace utils{
 //    }
 
 //    vec3 random_unit_vector() {
-//        auto a = random_double(0, 2* kPi);
-//        auto z = random_double(-1, 1);
+//        auto a = random_float(0, 2* kPi);
+//        auto z = random_float(-1, 1);
 //        auto r = sqrt(1 - z*z);
 //        return {r*cos(a), r*sin(a), z};
 //    }
@@ -82,14 +82,14 @@ namespace utils{
         return v - n * vectorgpu::dot(v,n)*2;
     }
 
-    vec3 refract(const vec3& uv, const vec3& n, double etai_over_etat) {
+    vec3 refract(const vec3& uv, const vec3& n, float etai_over_etat) {
         auto cos_theta = vectorgpu::dot(-uv, n);
         vec3 r_out_perp =  etai_over_etat * (uv + n * cos_theta);
         vec3 r_out_parallel = -sqrt(fabs(1.0 - vectorgpu::dot(r_out_perp, r_out_perp))) * n;
         return r_out_perp + r_out_parallel;
     }
 
-    double schlick(double cosine, double ref_idx) {
+    float schlick(float cosine, float ref_idx) {
         auto r0 = (1-ref_idx) / (1+ref_idx);
         r0 = r0*r0;
         return r0 + (1-r0)*pow((1 - cosine),5);
@@ -97,7 +97,7 @@ namespace utils{
 
     vec3 random_in_unit_disk() {
         while (true) {
-            auto p = vec3(random_double(-1,1), random_double(-1,1), 0);
+            auto p = vec3(random_float(-1,1), random_float(-1,1), 0);
             if (vectorgpu::dot(p, p) >= 1) continue;
             return p;
         }
