@@ -12,16 +12,18 @@
 class hittable_list{
 public:
     __device__ hittable_list() = default;
-    __device__ void clear() { delete[] objects; }
+    __device__ void clear() {
+        for(int i = 0; i < objSize; i++){
+            delete objects[i];
+        }
+    }
     __device__ bool hit(const ray& r, float t_min, float t_max, hit_record& rec) const;
     __device__ void initObj(size_t sz){
         objects = (hittable **)malloc(sz * sizeof(hittable *));
         objSize = sz;
     }
     __device__ ~hittable_list(){
-        for(int i = 0; i < objSize; i++){
-            delete objects[i];
-        }
+        clear();
     }
 public:
     hittable **objects;
