@@ -7,8 +7,8 @@
 
 class sphere : public hittable {
 public:
-    __device__ sphere() {}
-    __device__ sphere(point3 cen, float r) : center(cen), radius(r) {};
+    __host__ __device__ sphere() {}
+    __host__ __device__ sphere(point3 cen, float r) : center(cen), radius(r) {};
 
     __device__ virtual bool hit(
             const ray& r, float t_min, float t_max, hit_record& rec) const override;

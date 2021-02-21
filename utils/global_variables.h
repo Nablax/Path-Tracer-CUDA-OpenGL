@@ -6,6 +6,8 @@
 #define CUDARAYTRACER_GLOBAL_VARIABLES_H
 
 namespace globalvar{
+    __device__
+    const float kInfinityGPU = std::numeric_limits<float>::infinity();
     const float kInfinity = std::numeric_limits<float>::infinity();
     const float kPi = 3.1415926535897932385;
     const float kSqrt2Div2 = 0.70710678;
