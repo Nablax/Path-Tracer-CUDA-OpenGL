@@ -1,21 +1,28 @@
 #include <png_image.h>
 #include <chrono>
-#include <iostream>
 #include "cuda_check.h"
 #include "camera.h"
 #include "hittable_list.h"
 #include "sphere.h"
-#include "curand_kernel.h"
 
-__device__ color ray_color(const ray& r, hittable_list *world, int depth) {
+__device__ color ray_color(const ray& r, hittable_list *world, int depth, curandState *randState) {
     hit_record rec;
+    ray curRay = r;
     //printf("in ray color\n");
-    if (world->hit(r, 0, globalvar::kInfinityGPU, rec)) {
-        return 0.5 * (rec.normal + color(1,1,1));
+    float attenuation = 1.0f;
+    while(depth-- > 0){
+        if (world->hit(curRay, 0.001f, globalvar::kInfinityGPU, rec)) {
+            point3 target = rec.p + rec.normal + utils::randomInUnitSphereDiscard(randState);
+            attenuation *= 0.5f;
+            curRay = ray(rec.p, target - rec.p);
+        }
+        else{
+            vec3 unit_direction = vectorgpu::normalize(curRay.direction());
+            float t = 0.5f * (unit_direction.y() + 1.0f);
+            return ((1.0f - t) * color(1.0, 1.0, 1.0) + t * color(0.5, 0.7, 1.0)) * attenuation;
+        }
     }
-    vec3 unit_direction = vectorgpu::normalize(r.direction());
-    float t = 0.5f*(unit_direction.y() + 1.0f);
-    return (1.0f - t)*color(1.0, 1.0, 1.0) + t*color(0.5, 0.7, 1.0);
+    return {};
 }
 
 __global__ void generateWorld(hittable_list *world){
@@ -47,16 +54,19 @@ __global__ void render(vec3 *frameBuffer, int maxWidth, int maxHeight, int spp, 
     if(row >= maxHeight || col >= maxWidth) return;
     //printf("%d %d %d %d\n", row, col, maxWidth, maxHeight);
     int curPixel = row * maxWidth + col;
-    float maxWidthInv = 1.0f / maxWidth, maxHeightInv = 1.0f / maxHeight;
+    float maxWidthInv = 1.0f / maxWidth, maxHeightInv = 1.0f / maxHeight, sppInv = 1.0f / spp;
 
     for(int i = 0; i < spp; i++){
         float u = (col + curand_uniform(&randState[curPixel])) * maxWidthInv;
         float v = (row + curand_uniform(&randState[curPixel])) * maxHeightInv;
         ray r = myCamera->get_ray(u, v);
         //printf("%f %f %f\n", u, v, myCamera->fl);
-        frameBuffer[curPixel] += ray_color(r, world, maxDepth);
+        frameBuffer[curPixel] += ray_color(r, world, maxDepth, &randState[curPixel]);
     }
-    frameBuffer[curPixel] /= spp;
+    float r = sqrtf(frameBuffer[curPixel].r() * sppInv);
+    float g = sqrtf(frameBuffer[curPixel].g() * sppInv);
+    float b = sqrtf(frameBuffer[curPixel].b() * sppInv);
+    frameBuffer[curPixel] = vec3(r, g, b);
 }
 
 
@@ -77,20 +87,21 @@ int main()
 
     generateWorld<<<1, 1>>>(world);
 
-    dim3 blocks(kBlockX, kBlockY);
-    dim3 threads(kThreadX, kThreadY);
+    dim3 blocks(globalvar::kBlockX, globalvar::kBlockY);
+    dim3 threads(globalvar::kThreadX, globalvar::kThreadY);
     //printf("%d %d %d\n", blocks.x, blocks.y, blocks.z);
 
     curandState *devStates;
     checkCudaErrors(cudaMalloc((void **)&devStates, frameBufferSize * sizeof(curandState)));
     srand(time(nullptr));
     int seed = rand();
-    initRandom<<<blocks, threads>>>(devStates, kFrameWidth, kFrameHeight, seed);
+    initRandom<<<blocks, threads>>>(devStates, globalvar::kFrameWidth, globalvar::kFrameHeight, seed);
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
 
     auto start = std::chrono::system_clock::now();
-    render<<<blocks, threads>>>(frameBuffer, kFrameWidth, kFrameHeight, kSpp, kMaxDepth,
+    render<<<blocks, threads>>>(frameBuffer, globalvar::kFrameWidth, globalvar::kFrameHeight,
+                                globalvar::kSpp, globalvar::kMaxDepth,
                                 devCamera, world, devStates);
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
@@ -99,11 +110,11 @@ int main()
     std::cout <<  "Time cost "
                    << double(duration.count()) * std::chrono::microseconds::period::num / std::chrono::microseconds::period::den
                    << "\n";
-    for(int row = 0; row < kFrameHeight; row++){
-        for(int col = 0; col < kFrameWidth; col++){
-            int curPixel = row * kFrameWidth + col;
+    for(int row = 0; row < globalvar::kFrameHeight; row++){
+        for(int col = 0; col < globalvar::kFrameWidth; col++){
+            int curPixel = row * globalvar::kFrameWidth + col;
             //std::cerr << frameBuffer[curPixel] << '\n';
-            png.saveColor(frameBuffer[curPixel], kFrameHeight - row - 1, col);
+            png.saveColor(frameBuffer[curPixel], globalvar::kFrameHeight - row - 1, col);
         }
     }
 

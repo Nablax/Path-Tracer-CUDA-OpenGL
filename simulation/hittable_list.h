@@ -5,8 +5,6 @@
 #ifndef CUDARAYTRACER_HITTABLE_LIST_H
 #define CUDARAYTRACER_HITTABLE_LIST_H
 
-#include <vector>
-#include <memory>
 #include "hittable.h"
 
 class hittable_list{

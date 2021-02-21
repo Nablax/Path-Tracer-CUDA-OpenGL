@@ -19,22 +19,21 @@ public:
 
 __device__ bool sphere::hit(const ray& r, float t_min, float t_max, hit_record& rec) const {
     vec3 oc = r.origin() - center;
-    auto a = r.direction().length_squared();
-    auto half_b = dot(oc, r.direction());
-    auto c = oc.length_squared() - radius*radius;
+    float a = r.direction().length_squared();
+    float half_b = dot(oc, r.direction());
+    float c = oc.length_squared() - radius*radius;
 
-    auto discriminant = half_b*half_b - a*c;
+    float discriminant = half_b*half_b - a*c;
     if (discriminant < 0) return false;
-    auto sqrtd = sqrt(discriminant);
+    float sqrt = sqrtf(discriminant);
 
     // Find the nearest root that lies in the acceptable range.
-    auto root = (-half_b - sqrtd) / a;
+    float root = (-half_b - sqrt) / a;
     if (root < t_min || t_max < root) {
-        root = (-half_b + sqrtd) / a;
+        root = (-half_b + sqrt) / a;
         if (root < t_min || t_max < root)
             return false;
     }
-
     rec.t = root;
     rec.p = r.at(rec.t);
     vec3 outward_normal = (rec.p - center) / radius;

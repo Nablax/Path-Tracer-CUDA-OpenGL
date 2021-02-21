@@ -17,8 +17,8 @@ namespace vectorgpu{
         __host__ __device__ inline float z() const { return e[2];};
         __host__ __device__ inline float w() const { return e[3];};
         __host__ __device__ inline float r() const { return e[0];};
-        __host__ __device__ inline float b() const { return e[1];};
-        __host__ __device__ inline float g() const { return e[2];};
+        __host__ __device__ inline float g() const { return e[1];};
+        __host__ __device__ inline float b() const { return e[2];};
         __host__ __device__ inline float a() const { return e[3];};
         __host__ __device__ inline vec3 operator-() const { return {-e[0], -e[1], -e[2], e[3]};}
         __host__ __device__ inline vec3& operator+=(const vec3 &inVec) {
@@ -44,6 +44,11 @@ namespace vectorgpu{
         }
         __host__ __device__ inline float length_squared() const {return e[0]*e[0] + e[1]*e[1] + e[2]*e[2];}
         __host__ __device__ inline float length() const {return std::sqrt(length_squared());}
+        __host__ __device__ inline vec3& normalized() {
+            float tmpLen = this->length();
+            if(tmpLen == 0) return *this;
+            return *this /= tmpLen;
+        }
     };
     inline std::ostream& operator<<(std::ostream &out, const vec3 &v) {
         return out << v.e[0] << ' ' << v.e[1] << ' ' << v.e[2];
