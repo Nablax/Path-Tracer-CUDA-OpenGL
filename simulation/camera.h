@@ -9,50 +9,26 @@
 
 class camera {
 public:
-    camera(
-            point3 lookfrom,
-            point3 lookat,
-            vec3   vup,
-            float vfov, // vertical field-of-view in degrees
-            float aspect_ratio,
-            float aperture,
-            float focus_dist
-    ) {
-        auto theta = degrees_to_radians(vfov);
-        auto h = tan(theta/2);
-        auto viewport_height = 2.0 * h;
-        auto viewport_width = aspect_ratio * viewport_height;
+    __host__ __device__ camera() {
+        float viewport_height = 2.0;
+        float viewport_width = globalvar::kAspectRatio * viewport_height;
+        float focal_length = 1.0;
 
-        w = glm::normalize(lookfrom - lookat);
-        u = glm::normalize(cross(vup, w));
-        v = cross(w, u);
-
-        origin = lookfrom;
-        horizontal = focus_dist * viewport_width * u;
-        vertical = focus_dist * viewport_height * v;
-        higher_left_corner = origin - horizontal * 0.5 + vertical * 0.5 - focus_dist*w;
-
-        lens_radius = aperture / 2;
+        origin = point3(0, 0, 0);
+        horizontal = vec3(viewport_width, 0.0, 0.0);
+        vertical = vec3(0.0, viewport_height, 0.0);
+        lower_left_corner = origin - horizontal/2 - vertical/2 - vec3(0, 0, focal_length);
     }
 
-
-    ray get_ray(float s, float t) const {
-        vec3 rd = lens_radius * random_in_unit_disk();
-        vec3 offset = u * rd.x + v * rd.y;
-
-        return ray(
-                origin + offset,
-                higher_left_corner + s*horizontal - t*vertical - origin - offset
-        );
+    __device__ ray get_ray(float u, float v) const {
+        return ray(origin, lower_left_corner + u*horizontal + v*vertical - origin);
     }
 
-private:
+public:
     point3 origin;
-    point3 higher_left_corner;
+    point3 lower_left_corner;
     vec3 horizontal;
     vec3 vertical;
-    vec3 u, v, w;
-    float lens_radius;
 };
 
 #endif //RAY_TRACING_CAMERA_H

@@ -17,7 +17,7 @@ namespace globalvar{
     const float kRadToDeg = 57.295779513;
     const int kFrameWidth = 1200;
     const int kFrameHeight = static_cast<int>(kFrameWidth / kAspectRatio);
-    const int kSpp = 500;
+    const int kSpp = 32;
     const int kMaxDepth = 50;
     const int kThreadX = 8;
     const int kThreadY = 8;
