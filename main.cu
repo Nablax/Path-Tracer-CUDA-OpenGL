@@ -7,7 +7,7 @@
 #include "sphere.h"
 #include "curand_kernel.h"
 
-__device__ color ray_color(const ray& r, hittable_list *world) {
+__device__ color ray_color(const ray& r, hittable_list *world, int depth) {
     hit_record rec;
     //printf("in ray color\n");
     if (world->hit(r, 0, globalvar::kInfinityGPU, rec)) {
@@ -37,7 +37,7 @@ __global__ void initRandom(curandState *randState, int maxWidth, int maxHeight, 
     curand_init(seed, curPixel, 0, &randState[curPixel]);
 }
 
-__global__ void render(vec3 *frameBuffer, int maxWidth, int maxHeight, int spp,
+__global__ void render(vec3 *frameBuffer, int maxWidth, int maxHeight, int spp, int maxDepth,
                        camera *myCamera,
                        hittable_list *world, curandState *randState){
     //printf("%d %d %d %d %d %d\n", blockDim.x, threadIdx.x, threadIdx.x, blockDim.y, threadIdx.y, threadIdx.y);
@@ -54,7 +54,7 @@ __global__ void render(vec3 *frameBuffer, int maxWidth, int maxHeight, int spp,
         float v = (row + curand_uniform(&randState[curPixel])) * maxHeightInv;
         ray r = myCamera->get_ray(u, v);
         //printf("%f %f %f\n", u, v, myCamera->fl);
-        frameBuffer[curPixel] += ray_color(r, world);
+        frameBuffer[curPixel] += ray_color(r, world, maxDepth);
     }
     frameBuffer[curPixel] /= spp;
 }
@@ -90,7 +90,7 @@ int main()
     checkCudaErrors(cudaDeviceSynchronize());
 
     auto start = std::chrono::system_clock::now();
-    render<<<blocks, threads>>>(frameBuffer, kFrameWidth, kFrameHeight, globalvar::kSpp,
+    render<<<blocks, threads>>>(frameBuffer, kFrameWidth, kFrameHeight, kSpp, kMaxDepth,
                                 devCamera, world, devStates);
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
@@ -107,7 +107,7 @@ int main()
         }
     }
 
-    png.write("../output/7.png");
+    png.write("../output/8.png");
     clearWorld<<<1, 1>>>(world);
     checkCudaErrors(cudaFree(frameBuffer));
     checkCudaErrors(cudaFree(world));
