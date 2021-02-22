@@ -48,13 +48,13 @@ __global__ void generateWorld(RenderManager *world){
 }
 
 __global__ void generateRandomWorld(RenderManager *world, curandState* randState){
-    world->initObj(200);
-    world->initMat(200);
+    world->initObj(600);
+    world->initMat(600);
 
     auto ground_material = new lambertian(color(0.5, 0.5, 0.5));
     world->addObj(new sphere(point3(0,-1000,0), 1000, ground_material));
     world->addMat(ground_material);
-    int sampleNum = 5;
+    int sampleNum = 11;
     for(int i = -sampleNum; i < sampleNum; i++){
         for(int j = -sampleNum; j < sampleNum; j++){
             float choose_mat = curand_uniform(randState);
@@ -132,6 +132,28 @@ __global__ void render(vec3 *frameBuffer, int maxWidth, int maxHeight, int spp, 
     frameBuffer[curPixel] = vec3(r, g, b);
 }
 
+__global__ void renderPerSpp(vec3 *frameBuffer, int maxWidth, int maxHeight, float sppInv, int maxDepth,
+                       camera *myCamera,
+                       RenderManager *world, curandState *randState){
+
+    unsigned col = threadIdx.x + blockIdx.x * blockDim.x;
+    unsigned row = threadIdx.y + blockIdx.y * blockDim.y;
+
+    if(row >= maxHeight || col >= maxWidth) return;
+    //printf("%d %d %d %d\n", row, col, maxWidth, maxHeight);
+    unsigned curPixel = row * maxWidth + col;
+
+    float u = (col + curand_uniform(&randState[curPixel])) / maxWidth;
+    float v = (row + curand_uniform(&randState[curPixel])) / maxHeight;
+    ray tmpR = myCamera->get_ray(u, v, randState);
+    //printf("%f %f %f\n", u, v, myCamera->fl);
+    vec3 retColor = ray_color(tmpR, world, maxDepth, &randState[curPixel]) * sppInv;
+    frameBuffer[curPixel] += retColor;
+//    for(int i = 0; i < 3; i++){
+//        atomicAdd(&frameBuffer[curPixel].e[i], retColor.e[i]);
+//    }
+}
+
 
 int main()
 {
@@ -156,6 +178,7 @@ int main()
 
     //generateWorld<<<1, 1>>>(world);
 
+    dim3 blocksSpp(globalvar::kBlockX, globalvar::kBlockY, globalvar::kSpp);
     dim3 blocks(globalvar::kBlockX, globalvar::kBlockY);
     dim3 threads(globalvar::kThreadX, globalvar::kThreadY);
     //printf("%d %d %d\n", blocks.x, blocks.y, blocks.z);
@@ -177,6 +200,9 @@ int main()
     render<<<blocks, threads>>>(frameBuffer, globalvar::kFrameWidth, globalvar::kFrameHeight,
                                 globalvar::kSpp, globalvar::kMaxDepth,
                                 devCamera, world, devStates);
+//    renderPerSpp<<<blocksSpp, threads>>>(frameBuffer, globalvar::kFrameWidth, globalvar::kFrameHeight,
+//                                1.0f / globalvar::kSpp, globalvar::kMaxDepth,
+//                                devCamera, world, devStates);
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
     auto duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC;
@@ -189,13 +215,15 @@ int main()
         }
     }
 
-    png.write("../output/13_1.png");
+    png.write("../output/13_2.png");
     clearWorld<<<1, 1>>>(world);
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
     checkCudaErrors(cudaFree(frameBuffer));
     checkCudaErrors(cudaFree(world));
-    delete []frameBuffer;
+    checkCudaErrors(cudaFree(devStates));
+    checkCudaErrors(cudaFree(devCamera));
+    cudaDeviceReset();
     return 0;
 }
 
