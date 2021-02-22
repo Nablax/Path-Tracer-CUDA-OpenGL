@@ -14,9 +14,6 @@ public:
             : center(cen), radius(r), mat_ptr(m) {};
     __device__ virtual bool hit(
             const ray& r, float t_min, float t_max, hit_record& rec) const override;
-    __device__ ~sphere() override{
-        delete mat_ptr;
-    }
 public:
     point3 center;
     material* mat_ptr;

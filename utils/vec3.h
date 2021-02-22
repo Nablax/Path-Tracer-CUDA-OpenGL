@@ -94,9 +94,6 @@ namespace vectorgpu{
         if(tmpLen == 0) return {};
         return v / tmpLen;
     }
-    __host__ __device__ inline vec3 reflect(const vec3& v, const vec3& n) {
-        return v - 2 * dot(v, n) * n;
-    }
 }
 
 #endif //CUDARAYTRACER_VEC3_H

@@ -2,38 +2,50 @@
 // Created by LZR on 2021/2/20.
 //
 
-#ifndef CUDARAYTRACER_HITTABLE_LIST_H
-#define CUDARAYTRACER_HITTABLE_LIST_H
+#ifndef CUDARAYTRACER_RENDER_MANAGER_H
+#define CUDARAYTRACER_RENDER_MANAGER_H
 
 #include "hittable.h"
+#include "material.h"
 
-class hittable_list{
+class RenderManager{
 public:
-    __device__ hittable_list() {};
-    __device__ hittable_list(size_t sz){
-        initObj(sz);
+    __device__ RenderManager() {};
+    __device__ RenderManager(size_t objSz, size_t matSz){
+        initObj(objSz);
+        initMat(matSz);
     }
     __device__ void clear() {
         for(int i = 0; i < objSize; i++){
             delete objects[i];
-            objects[i] = nullptr;
         }
         delete objects;
+
+        for(int i = 0; i < matSize; i++){
+            delete mats[i];
+        }
+        delete mats;
     }
     __device__ bool hit(const ray& r, float t_min, float t_max, hit_record& rec) const;
     __device__ void initObj(size_t sz){
         objects = new hittable*[2];
         objSize = sz;
     }
-    __device__ ~hittable_list(){
+    __device__ void initMat(size_t sz){
+        mats = new material*[2];
+        matSize = sz;
+    }
+    __device__ ~RenderManager(){
         clear();
     }
 public:
     hittable **objects;
+    material **mats;
     size_t objSize = 0;
+    size_t matSize = 0;
 };
 
-__device__ bool hittable_list::hit(const ray &r, float t_min, float t_max, hit_record &rec) const {
+__device__ bool RenderManager::hit(const ray &r, float t_min, float t_max, hit_record &rec) const {
     hit_record temp_rec;
     bool hit_anything = false;
     auto closest_so_far = t_max;
@@ -49,4 +61,4 @@ __device__ bool hittable_list::hit(const ray &r, float t_min, float t_max, hit_r
 }
 
 
-#endif //CUDARAYTRACER_HITTABLE_LIST_H
+#endif //CUDARAYTRACER_RENDER_MANAGER_H

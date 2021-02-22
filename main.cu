@@ -2,11 +2,11 @@
 #include <ctime>
 #include "cuda_check.h"
 #include "camera.h"
-#include "hittable_list.h"
+#include "render_manager.h"
 #include "sphere.h"
 #include "material.h"
 
-__device__ color ray_color(const ray& r, hittable_list *world, int depth, curandState *randState) {
+__device__ color ray_color(const ray& r, RenderManager *world, int depth, curandState *randState) {
     hit_record rec;
     ray curRay = r;
     //printf("in ray color\n");
@@ -27,19 +27,26 @@ __device__ color ray_color(const ray& r, hittable_list *world, int depth, curand
     return {};
 }
 
-__global__ void generateWorld(hittable_list *world){
-    world->initObj(4);
+__global__ void generateWorld(RenderManager *world){
+    world->initObj(5);
+    world->initMat(4);
+
     auto material_ground = new lambertian(color(0.8, 0.8, 0.0));
-    auto material_center = new lambertian(color(0.7, 0.3, 0.3));
-    auto material_left = new metal(color(0.8, 0.8, 0.8), 0);
-    auto material_right   = new metal(color(0.8, 0.6, 0.2), 1);
+    world->mats[0] = material_ground;
+    auto material_center = new lambertian(color(0.1, 0.2, 0.5));
+    world->mats[1] = material_center;
+    auto material_left = new dielectric(1.5f);
+    world->mats[2] = material_left;
+    auto material_right = new metal(color(0.8, 0.6, 0.2), 1);
+    world->mats[3] = material_right;
     world->objects[0] = new sphere(point3( 0.0, -100.5, -1.0), 100.0, material_ground);
     world->objects[1] = new sphere(point3( 0.0, 0.0, -1.0),   0.5, material_center);
     world->objects[2] = new sphere(point3(-1.0, 0.0, -1.0),   0.5, material_left);
-    world->objects[3] = new sphere(point3( 1.0, 0.0, -1.0),   0.5, material_right);
+    world->objects[3] = new sphere(point3(-1.0, 0.0, -1.0),   -0.4, material_left);
+    world->objects[4] = new sphere(point3( 1.0, 0.0, -1.0),   0.5, material_right);
 }
 
-__global__ void clearWorld(hittable_list *world){
+__global__ void clearWorld(RenderManager *world){
     delete world;
 }
 
@@ -54,7 +61,7 @@ __global__ void initRandom(curandState *randState, int maxWidth, int maxHeight, 
 
 __global__ void render(vec3 *frameBuffer, int maxWidth, int maxHeight, int spp, int maxDepth,
                        camera *myCamera,
-                       hittable_list *world, curandState *randState){
+                       RenderManager *world, curandState *randState){
     //printf("%d %d %d %d %d %d\n", blockDim.x, threadIdx.x, threadIdx.x, blockDim.y, threadIdx.y, threadIdx.y);
     unsigned col = threadIdx.x + blockIdx.x * blockDim.x;
     unsigned row = threadIdx.y + blockIdx.y * blockDim.y;
@@ -86,8 +93,8 @@ int main()
     vec3 *frameBuffer;
     checkCudaErrors(cudaMallocManaged((void **)&frameBuffer, frameBufferSize));
 
-    hittable_list *world;
-    checkCudaErrors(cudaMalloc((void **)&world, sizeof(hittable_list)));
+    RenderManager *world;
+    checkCudaErrors(cudaMalloc((void **)&world, sizeof(RenderManager)));
 
     camera *devCamera, *hostCamera = new camera();
     checkCudaErrors(cudaMalloc((void **)&devCamera, sizeof(camera)));
@@ -124,7 +131,7 @@ int main()
         }
     }
 
-    png.write("../output/10.png");
+    png.write("../output/11.png");
     clearWorld<<<1, 1>>>(world);
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
