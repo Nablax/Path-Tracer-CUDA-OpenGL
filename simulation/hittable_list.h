@@ -9,12 +9,15 @@
 
 class hittable_list{
 public:
-    __device__ hittable_list() = default;
+    __device__ hittable_list() {};
     __device__ hittable_list(size_t sz){
         initObj(sz);
     }
     __device__ void clear() {
-        delete[] *objects;
+        for(int i = 0; i < objSize; i++){
+            delete objects[i];
+            objects[i] = nullptr;
+        }
         delete objects;
     }
     __device__ bool hit(const ray& r, float t_min, float t_max, hit_record& rec) const;

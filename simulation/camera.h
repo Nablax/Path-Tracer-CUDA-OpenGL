@@ -21,7 +21,7 @@ public:
     }
 
     __device__ ray get_ray(float u, float v) const {
-        return ray(origin, lower_left_corner + u*horizontal + v*vertical - origin);
+        return {origin, lower_left_corner + u*horizontal + v*vertical - origin};
     }
 
 public:

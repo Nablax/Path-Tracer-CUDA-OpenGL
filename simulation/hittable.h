@@ -5,9 +5,12 @@
 #ifndef CUDARAYTRACER_HITTABLE_H
 #define CUDARAYTRACER_HITTABLE_H
 
+class material;
+
 struct hit_record {
     point3 p;
     vec3 normal;
+    material *mat_ptr = nullptr;
     float t = 0;
     bool front_face = false;
 
@@ -20,7 +23,7 @@ struct hit_record {
 class hittable {
 public:
     __device__ virtual bool hit(const ray& r, float t_min, float t_max, hit_record& rec) const = 0;
-    __device__ virtual ~hittable() = default;
+    __device__ virtual ~hittable() {};
 };
 
 #endif //CUDARAYTRACER_HITTABLE_H

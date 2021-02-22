@@ -33,6 +33,12 @@ namespace vectorgpu{
             e[2] -= inVec.e[2];
             return *this;
         }
+        __host__ __device__ inline vec3& operator*=(const vec3 &inVec) {
+            e[0] *= inVec.x();
+            e[1] *= inVec.y();
+            e[2] *= inVec.z();
+            return *this;
+        }
         __host__ __device__ inline vec3& operator*=(const float &t) {
             e[0] *= t;
             e[1] *= t;
@@ -48,6 +54,10 @@ namespace vectorgpu{
             float tmpLen = this->length();
             if(tmpLen == 0) return *this;
             return *this /= tmpLen;
+        }
+        __host__ __device__ inline bool near_zero() const {
+            const float s = 1e-7;
+            return (fabs(e[0]) < s) && (fabs(e[1]) < s) && (fabs(e[2]) < s);
         }
     };
     inline std::ostream& operator<<(std::ostream &out, const vec3 &v) {
@@ -83,6 +93,9 @@ namespace vectorgpu{
         float tmpLen = v.length();
         if(tmpLen == 0) return {};
         return v / tmpLen;
+    }
+    __host__ __device__ inline vec3 reflect(const vec3& v, const vec3& n) {
+        return v - 2 * dot(v, n) * n;
     }
 }
 

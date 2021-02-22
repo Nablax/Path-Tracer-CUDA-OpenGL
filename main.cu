@@ -1,20 +1,22 @@
 #include <png_image.h>
-#include <chrono>
+#include <ctime>
 #include "cuda_check.h"
 #include "camera.h"
 #include "hittable_list.h"
 #include "sphere.h"
+#include "material.h"
 
 __device__ color ray_color(const ray& r, hittable_list *world, int depth, curandState *randState) {
     hit_record rec;
     ray curRay = r;
     //printf("in ray color\n");
-    float attenuation = 1.0f;
+    color attenuation(1, 1, 1);
     while(depth-- > 0){
         if (world->hit(curRay, 0.001f, globalvar::kInfinityGPU, rec)) {
-            point3 target = rec.p + rec.normal + utils::randomInUnitSphereDiscard(randState);
-            attenuation *= 0.5f;
-            curRay = ray(rec.p, target - rec.p);
+            color nextAttenuation;
+            if (rec.mat_ptr->scatter(curRay, rec, nextAttenuation, curRay, randState))
+                attenuation *= nextAttenuation;
+            else attenuation = vec3();
         }
         else{
             vec3 unit_direction = vectorgpu::normalize(curRay.direction());
@@ -26,9 +28,15 @@ __device__ color ray_color(const ray& r, hittable_list *world, int depth, curand
 }
 
 __global__ void generateWorld(hittable_list *world){
-    world->initObj(2);
-    world->objects[0] = new sphere(point3(0,0,-1), 0.5);
-    world->objects[1] = new sphere(point3(0,-100.5,-1), 100);
+    world->initObj(4);
+    auto material_ground = new lambertian(color(0.8, 0.8, 0.0));
+    auto material_center = new lambertian(color(0.7, 0.3, 0.3));
+    auto material_left = new metal(color(0.8, 0.8, 0.8), 0);
+    auto material_right   = new metal(color(0.8, 0.6, 0.2), 1);
+    world->objects[0] = new sphere(point3( 0.0, -100.5, -1.0), 100.0, material_ground);
+    world->objects[1] = new sphere(point3( 0.0, 0.0, -1.0),   0.5, material_center);
+    world->objects[2] = new sphere(point3(-1.0, 0.0, -1.0),   0.5, material_left);
+    world->objects[3] = new sphere(point3( 1.0, 0.0, -1.0),   0.5, material_right);
 }
 
 __global__ void clearWorld(hittable_list *world){
@@ -36,11 +44,11 @@ __global__ void clearWorld(hittable_list *world){
 }
 
 __global__ void initRandom(curandState *randState, int maxWidth, int maxHeight, int seed){
-    int col = threadIdx.x + blockIdx.x * blockDim.x;
-    int row = threadIdx.y + blockIdx.y * blockDim.y;
+    unsigned col = threadIdx.x + blockIdx.x * blockDim.x;
+    unsigned row = threadIdx.y + blockIdx.y * blockDim.y;
 
     if(row >= maxHeight || col >= maxWidth) return;
-    int curPixel = row * maxWidth + col;
+    unsigned curPixel = row * maxWidth + col;
     curand_init(seed, curPixel, 0, &randState[curPixel]);
 }
 
@@ -48,12 +56,12 @@ __global__ void render(vec3 *frameBuffer, int maxWidth, int maxHeight, int spp, 
                        camera *myCamera,
                        hittable_list *world, curandState *randState){
     //printf("%d %d %d %d %d %d\n", blockDim.x, threadIdx.x, threadIdx.x, blockDim.y, threadIdx.y, threadIdx.y);
-    int col = threadIdx.x + blockIdx.x * blockDim.x;
-    int row = threadIdx.y + blockIdx.y * blockDim.y;
+    unsigned col = threadIdx.x + blockIdx.x * blockDim.x;
+    unsigned row = threadIdx.y + blockIdx.y * blockDim.y;
 
     if(row >= maxHeight || col >= maxWidth) return;
     //printf("%d %d %d %d\n", row, col, maxWidth, maxHeight);
-    int curPixel = row * maxWidth + col;
+    unsigned curPixel = row * maxWidth + col;
     float maxWidthInv = 1.0f / maxWidth, maxHeightInv = 1.0f / maxHeight, sppInv = 1.0f / spp;
 
     for(int i = 0; i < spp; i++){
@@ -99,17 +107,15 @@ int main()
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
 
-    auto start = std::chrono::system_clock::now();
+    printf("Start rendering!\n");
+    std::clock_t start = std::clock();
     render<<<blocks, threads>>>(frameBuffer, globalvar::kFrameWidth, globalvar::kFrameHeight,
                                 globalvar::kSpp, globalvar::kMaxDepth,
                                 devCamera, world, devStates);
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
-    auto end = std::chrono::system_clock::now();
-    auto duration = end - start;
-    std::cout <<  "Time cost "
-                   << double(duration.count()) * std::chrono::microseconds::period::num / std::chrono::microseconds::period::den
-                   << "\n";
+    auto duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC;
+    std::cout<<"Time Cost: "<< duration <<'\n';
     for(int row = 0; row < globalvar::kFrameHeight; row++){
         for(int col = 0; col < globalvar::kFrameWidth; col++){
             int curPixel = row * globalvar::kFrameWidth + col;
@@ -118,8 +124,10 @@ int main()
         }
     }
 
-    png.write("../output/8.png");
+    png.write("../output/10.png");
     clearWorld<<<1, 1>>>(world);
+    checkCudaErrors(cudaGetLastError());
+    checkCudaErrors(cudaDeviceSynchronize());
     checkCudaErrors(cudaFree(frameBuffer));
     checkCudaErrors(cudaFree(world));
     delete []frameBuffer;
