@@ -14,8 +14,9 @@ namespace utils{
     using point3 = vectorgpu::vec3;
     using vec3 = vectorgpu::vec3;
 
+    __host__ __device__
     inline float degrees_to_radians(float degrees) {
-        return degrees * globalvar::kDegToRad;
+        return degrees * globalvar::kDegToRadGPU;
     }
 
     inline float clamp(float x, float min, float max) {
@@ -69,6 +70,12 @@ namespace utils{
         if(vectorgpu::dot(inUnitSphere, normal) > 0)
             return inUnitSphere;
         return -inUnitSphere;
+    }
+
+    __device__ vec3 randomInUnitDisk(curandState *randState){
+        float r = sqrtf(curand_uniform(randState));
+        float theta = curand_uniform(randState) * 2 * globalvar::kPiGPU;
+        return {r * cosf(theta), r * sinf(theta), 0};
     }
 }
 
