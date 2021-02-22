@@ -33,7 +33,7 @@ public:
         vec3 scatter_direction = rec.normal + utils::randomOnUnitSphereDiscard(randState);
         if (scatter_direction.near_zero())
             scatter_direction = rec.normal;
-        scattered = ray(rec.p, scatter_direction);
+        scattered = ray(rec.p, scatter_direction, r_in.time());
         attenuation = albedo;
         return true;
     }
@@ -52,7 +52,7 @@ public:
             const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, curandState *randState
     ) const override {
         vec3 reflected = rayphysics::reflect(vectorgpu::normalize(r_in.direction()), rec.normal);
-        scattered = ray(rec.p, reflected + fuzz * utils::randomInUnitSphereDiscard(randState));
+        scattered = ray(rec.p, reflected + fuzz * utils::randomInUnitSphereDiscard(randState), r_in.time());
         attenuation = albedo;
         return (dot(scattered.direction(), rec.normal) > 0);
     }
@@ -86,7 +86,7 @@ public:
         else
             direction = rayphysics::refract(unit_direction, rec.normal, refraction_ratio);
 
-        scattered = ray(rec.p, direction);
+        scattered = ray(rec.p, direction, r_in.time());
 
         return true;
     }

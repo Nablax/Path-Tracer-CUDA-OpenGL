@@ -5,6 +5,7 @@
 #include "render_manager.h"
 #include "sphere.h"
 #include "material.h"
+#include "moving_sphere.h"
 
 __device__ color ray_color(const ray& r, RenderManager *world, int depth, curandState *randState) {
     hit_record rec;
@@ -54,7 +55,7 @@ __global__ void generateRandomWorld(RenderManager *world, curandState* randState
     auto ground_material = new lambertian(color(0.5, 0.5, 0.5));
     world->addObj(new sphere(point3(0,-1000,0), 1000, ground_material));
     world->addMat(ground_material);
-    int sampleNum = 11;
+    int sampleNum = 5;
     for(int i = -sampleNum; i < sampleNum; i++){
         for(int j = -sampleNum; j < sampleNum; j++){
             float choose_mat = curand_uniform(randState);
@@ -66,17 +67,21 @@ __global__ void generateRandomWorld(RenderManager *world, curandState* randState
                 if(choose_mat < 0.8){
                     auto albedo = rand1 * rand2;
                     sphere_material = new lambertian(albedo);
+                    auto center2 = center + vec3(0, rand2.y() * 0.5f, 0);
+                    world->addObj(new moving_sphere(center, center2, 0.0, 1.0, 0.2, sphere_material));
                 }
                 else if(choose_mat < 0.95){
                     auto albedo = rand1 / 2 + vec3(0.5f, 0.5f, 0.5f);
                     float fuzz = rand2.x() / 2;
                     sphere_material = new metal(albedo, fuzz);
+                    world->addObj(new sphere(center, 0.2, sphere_material));
                 }
                 else{
                     sphere_material = new dielectric(1.5f);
+                    world->addObj(new sphere(center, 0.2, sphere_material));
                 }
                 world->addMat(sphere_material);
-                world->addObj(new sphere(center, 0.2, sphere_material));
+
             }
         }
     }
@@ -172,7 +177,7 @@ int main()
     auto dist_to_focus = 10.0f;
     auto aperture = 0.1f;
     camera *devCamera, *hostCamera =
-            new camera(lookfrom, lookat, vup, 20, globalvar::kAspectRatio, aperture, dist_to_focus);
+            new camera(lookfrom, lookat, vup, 20, globalvar::kAspectRatio, aperture, dist_to_focus, 0.0, 1.0);
     checkCudaErrors(cudaMalloc((void **)&devCamera, sizeof(camera)));
     checkCudaErrors(cudaMemcpy(devCamera, hostCamera, sizeof(camera), cudaMemcpyHostToDevice));
 
@@ -215,7 +220,7 @@ int main()
         }
     }
 
-    png.write("../output/13_2.png");
+    png.write("../output2/3.png");
     clearWorld<<<1, 1>>>(world);
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());

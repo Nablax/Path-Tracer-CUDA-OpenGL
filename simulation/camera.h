@@ -16,7 +16,9 @@ public:
         float vfov, // vertical field-of-view in degrees
         float aspect_ratio,
         float aperture,
-        float focus_dist
+        float focus_dist,
+        float _time0 = 0,
+        float _time1 = 0
     ) {
         float theta = degrees_to_radians(vfov);
         float h = tanf(theta/2);
@@ -32,13 +34,17 @@ public:
         vertical = focus_dist * viewport_height * v;
         lower_left_corner = origin - horizontal/2 - vertical/2 - focus_dist*w;
         lens_radius = aperture / 2;
+
+        time0 = _time0;
+        time1 = _time1;
     }
 
-    __device__ ray get_ray(float s, float t, curandState *randState) const {
+    __device__ inline ray get_ray(float s, float t, curandState *randState) const {
         vec3 rd = lens_radius * utils::randomInUnitDisk(randState);
         vec3 offset = u * rd.x() + v * rd.y();
         return {origin + offset,
-                lower_left_corner + s * horizontal + t * vertical - origin - offset};
+                lower_left_corner + s * horizontal + t * vertical - origin - offset,
+                utils::randomInRange(time0, time1, randState)};
     }
 
 public:
@@ -48,6 +54,7 @@ public:
     vec3 vertical;
     vec3 u, v, w;
     float lens_radius;
+    float time0, time1;
 };
 
 #endif //RAY_TRACING_CAMERA_H

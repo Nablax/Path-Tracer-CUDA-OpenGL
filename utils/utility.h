@@ -25,7 +25,12 @@ namespace utils{
         return x;
     }
 
-    __device__ vec3 randomOnUnitSphereDiscard(curandState *randState){
+    __device__ inline float randomInRange(float left, float right, curandState *randState){
+        if(right <= left) return 0;
+        return curand_uniform(randState) * (right - left) + left;
+    }
+
+    __device__ inline vec3 randomOnUnitSphereDiscard(curandState *randState){
         vec3 res;
         float norm = 1;
         do{
@@ -38,7 +43,7 @@ namespace utils{
         return res / sqrtf(norm);
     }
 
-    __device__ vec3 randomInUnitSphereCbrt(curandState *randState){
+    __device__ inline vec3 randomInUnitSphereCbrt(curandState *randState){
         vec3 res = vec3(
                 curand_uniform(randState) - 0.5f,
                 curand_uniform(randState) - 0.5f,
@@ -47,7 +52,7 @@ namespace utils{
         return res.normalized() * u;
     }
 
-    __device__ vec3 randomInUnitSphereDiscard(curandState *randState){
+    __device__ inline vec3 randomInUnitSphereDiscard(curandState *randState){
         vec3 res;
         do{
             res = 2 * vec3(
@@ -58,21 +63,21 @@ namespace utils{
         return res;
     }
 
-    __device__ vec3 randomOnUnitSphere(curandState *randState){
+    __device__ inline vec3 randomOnUnitSphere(curandState *randState){
         float phi = curand_uniform(randState) * 2.0f * globalvar::kPiGPU;
         float cosTheta = 1.0f - 2 * curand_uniform(randState);
         float sinTheta = sqrtf(1.0f - cosTheta * cosTheta);
         return {cosf(phi) * sinTheta, sinf(phi) * sinTheta, cosTheta};
     }
 
-    __device__ vec3 randomInUnitHemisphere(curandState *randState, const vec3 &normal){
+    __device__ inline vec3 randomInUnitHemisphere(curandState *randState, const vec3 &normal){
         vec3 inUnitSphere = randomInUnitSphereDiscard(randState);
         if(vectorgpu::dot(inUnitSphere, normal) > 0)
             return inUnitSphere;
         return -inUnitSphere;
     }
 
-    __device__ vec3 randomInUnitDisk(curandState *randState){
+    __device__ inline vec3 randomInUnitDisk(curandState *randState){
         float r = sqrtf(curand_uniform(randState));
         float theta = curand_uniform(randState) * 2 * globalvar::kPiGPU;
         return {r * cosf(theta), r * sinf(theta), 0};
