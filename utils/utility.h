@@ -19,6 +19,13 @@ namespace utils{
         return degrees * globalvar::kDegToRadGPU;
     }
 
+    __device__
+    inline void swapGPU(float &a, float &b){
+        auto tmp = a;
+        a = b;
+        b = tmp;
+    }
+
     inline float clamp(float x, float min, float max) {
         if (x < min) return min;
         if (x > max) return max;

@@ -6,6 +6,7 @@
 #include "sphere.h"
 #include "material.h"
 #include "moving_sphere.h"
+#include "bvh.h"
 
 __device__ color ray_color(const ray& r, RenderManager *world, int depth, curandState *randState) {
     hit_record rec;

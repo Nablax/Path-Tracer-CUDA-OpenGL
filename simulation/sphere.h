@@ -6,21 +6,24 @@
 #define CUDARAYTRACER_SPHERE_H
 
 #include "material.h"
+#include "aabb.h"
 
 class sphere : public hittable{
 public:
     __device__ sphere() {}
     __device__ sphere(point3 cen, float r, material* m)
             : center(cen), radius(r), mat_ptr(m) {};
-    __device__ virtual bool hit(
+    __device__ virtual inline bool hit(
             const ray& r, float t_min, float t_max, hit_record& rec) const override;
+    __device__
+    virtual inline bool bounding_box(float time0, float time1, aabb& output_box) const override;
 public:
     point3 center;
     material* mat_ptr;
     float radius;
 };
 
-__device__ bool sphere::hit(const ray& r, float t_min, float t_max, hit_record& rec) const {
+__device__ inline bool sphere::hit(const ray& r, float t_min, float t_max, hit_record& rec) const {
     vec3 oc = r.origin() - center;
     float a = r.direction().length_squared();
     float half_b = dot(oc, r.direction());
@@ -44,6 +47,12 @@ __device__ bool sphere::hit(const ray& r, float t_min, float t_max, hit_record& 
     rec.mat_ptr = mat_ptr;
 
     return true;
+}
+
+__device__ inline bool sphere::bounding_box(float time0, float time1, aabb &output_box) const {
+    output_box = aabb(center - vec3(radius, radius, radius),
+                      center + vec3(radius, radius, radius));
+    return false;
 }
 
 #endif //CUDARAYTRACER_SPHERE_H

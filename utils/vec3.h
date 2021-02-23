@@ -20,6 +20,14 @@ namespace vectorgpu{
         __host__ __device__ inline float g() const { return e[1];};
         __host__ __device__ inline float b() const { return e[2];};
         __host__ __device__ inline float a() const { return e[3];};
+        __host__ __device__ inline float operator[](int i) const {
+            if(i > 3) return e[0];
+            return e[i];
+        };
+        __host__ __device__ inline float& operator[](int i) {
+            if(i > 3) return e[0];
+            return e[i];
+        };
         __host__ __device__ inline vec3 operator-() const { return {-e[0], -e[1], -e[2], e[3]};}
         __host__ __device__ inline vec3& operator+=(const vec3 &inVec) {
             e[0] += inVec.e[0];

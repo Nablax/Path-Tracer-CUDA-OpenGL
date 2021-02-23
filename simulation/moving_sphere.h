@@ -17,10 +17,13 @@ public:
     {};
 
     __device__
-    virtual bool hit(
+    bool hit(
             const ray& r, float t_min, float t_max, hit_record& rec) const override;
     __device__
     point3 center(float time) const;
+    __device__
+    bool bounding_box(
+            float _time0, float _time1, aabb& output_box) const override;
 
 public:
     point3 center0, center1;
@@ -30,12 +33,12 @@ public:
 };
 
 __device__
-point3 moving_sphere::center(float time) const {
+inline point3 moving_sphere::center(float time) const {
     return center0 + ((time - time0) / (time1 - time0))*(center1 - center0);
 }
 
 __device__
-bool moving_sphere::hit(const ray &r, float t_min, float t_max, hit_record &rec) const {
+inline bool moving_sphere::hit(const ray &r, float t_min, float t_max, hit_record &rec) const {
     vec3 oc = r.origin() - center(r.time());
     float a = r.direction().length_squared();
     float half_b = dot(oc, r.direction());
@@ -59,6 +62,17 @@ bool moving_sphere::hit(const ray &r, float t_min, float t_max, hit_record &rec)
     rec.set_face_normal(r, outward_normal);
     rec.mat_ptr = mat_ptr;
 
+    return true;
+}
+
+__device__ inline bool moving_sphere::bounding_box(float _time0, float _time1, aabb &output_box) const {
+    aabb box0(
+            center(_time0) - vec3(radius, radius, radius),
+            center(_time0) + vec3(radius, radius, radius));
+    aabb box1(
+            center(_time1) - vec3(radius, radius, radius),
+            center(_time1) + vec3(radius, radius, radius));
+    output_box = unionBox(box0, box1);
     return true;
 }
 
