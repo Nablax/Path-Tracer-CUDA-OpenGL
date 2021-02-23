@@ -1,13 +1,13 @@
 cmake_minimum_required(VERSION 3.17)
-project(CUDARayTracer CUDA)
+project(CUDARayTracer CUDA CXX)
 
 set(CMAKE_CUDA_STANDARD 14)
 
-add_executable(CUDARayTracer main.cu utils/png_image.h
-        utils/utility.h utils/vec3.h utils/global_variables.h simulation/ray.h
-        simulation/camera.h utils/cuda_check.h simulation/hittable.h
-        simulation/sphere.h utils/render_manager.h simulation/material.h
-        simulation/physical.h simulation/moving_sphere.h utils/aabb.h utils/bvh.h)
+add_executable(CUDARayTracer main.cu OpenGL_Win/glad.c)
+
+include_directories(${PROJECT_SOURCE_DIR}/OpenGL_Win/include)
+link_libraries(${PROJECT_SOURCE_DIR}/OpenGL_Win/lib)
+target_link_libraries(CUDARayTracer -lopengl32 ${PROJECT_SOURCE_DIR}/OpenGL_Win/lib/glfw3.lib)
 
 include_directories(outsource utils simulation)
 set_target_properties(
