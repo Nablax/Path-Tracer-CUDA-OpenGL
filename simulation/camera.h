@@ -39,6 +39,10 @@ public:
         time1 = _time1;
     }
 
+    __device__ void updateLookfrom(vec3 delLookFrom){
+
+    }
+
     __device__ inline ray get_ray(float s, float t, curandState *randState) const {
         vec3 rd = lens_radius * utils::randomInUnitDisk(randState);
         vec3 offset = u * rd.x() + v * rd.y();

@@ -209,7 +209,7 @@ __global__ void renderBySurface(int maxWidth, int maxHeight, int spp, int maxDep
     surf2Dwrite(rgbx.b32,
                 surf,
                 col * sizeof(rgbx),
-                (maxHeight - row - 1),
+                row,
                 cudaBoundaryModeZero);
 }
 
@@ -292,7 +292,7 @@ int main()
     point3 lookat(0,0,0);
     vec3 vup(0,1,0);
     auto dist_to_focus = 10.0f;
-    auto aperture = 0.1f;
+    auto aperture = 0.0f;
     camera *devCamera, *hostCamera =
             new camera(lookfrom, lookat, vup, 20, globalvar::kAspectRatio, aperture, dist_to_focus, 0.0, 1.0);
     checkCudaErrors(cudaMalloc((void **)&devCamera, sizeof(camera)));
@@ -463,6 +463,10 @@ int draw(){
 void processInput(GLFWwindow *window)
 {
     if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+        glfwSetWindowShouldClose(window, true);
+    if(glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS){
+
+    }
         glfwSetWindowShouldClose(window, true);
 }
 

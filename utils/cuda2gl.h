@@ -74,8 +74,8 @@ public:
     }
     void blitFramebuffer(){
         glBlitNamedFramebuffer(mFramebuffer[mCurIndex], 0, 0, 0,
-                          mBufferWidth, mBufferHeight, 0,
-                          mBufferHeight, mBufferWidth, 0,
+                          mBufferWidth, mBufferHeight, 0, 0,
+                          mBufferWidth, mBufferHeight,
                           GL_COLOR_BUFFER_BIT, GL_NEAREST);
     }
     ~Cuda2Gl(){
