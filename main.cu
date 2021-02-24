@@ -9,6 +9,8 @@
 #include "bvh.h"
 #include "cuda2gl.h"
 
+surface<void,cudaSurfaceType2D> surf;
+
 __device__ color ray_color(const ray& r, RenderManager *world, int depth, curandState *randState) {
     hit_record rec;
     ray curRay = r;
@@ -57,7 +59,7 @@ __global__ void generateRandomWorld(RenderManager *world, curandState* randState
     auto ground_material = new lambertian(color(0.5, 0.5, 0.5));
     world->addObj(new sphere(point3(0,-1000,0), 1000, ground_material));
     world->addMat(ground_material);
-    int sampleNum = 5;
+    int sampleNum = 0;
     for(int i = -sampleNum; i < sampleNum; i++){
         for(int j = -sampleNum; j < sampleNum; j++){
             float choose_mat = curand_uniform(randState);
@@ -161,7 +163,121 @@ __global__ void renderPerSpp(vec3 *frameBuffer, int maxWidth, int maxHeight, flo
 //    }
 }
 
-int renderScene()
+union pxl_rgbx_24
+{
+    uint1 b32;
+    struct {
+        unsigned  r  : 8;
+        unsigned  g  : 8;
+        unsigned  b  : 8;
+        unsigned  na : 8;
+    };
+};
+
+
+bool goRender = true;
+
+__global__ void renderBySurface(int maxWidth, int maxHeight, int spp, int maxDepth,
+                       camera *myCamera,
+                       RenderManager *world, curandState *randState, bool goRender){
+    if(!goRender) return;
+    //printf("%d %d %d %d %d %d\n", blockDim.x, threadIdx.x, threadIdx.x, blockDim.y, threadIdx.y, threadIdx.y);
+    unsigned col = threadIdx.x + blockIdx.x * blockDim.x;
+    unsigned row = threadIdx.y + blockIdx.y * blockDim.y;
+
+    if(row >= maxHeight || col >= maxWidth) return;
+    //printf("%d %d %d %d\n", row, col, maxWidth, maxHeight);
+    unsigned curPixel = row * maxWidth + col;
+    float maxWidthInv = 1.0f / maxWidth, maxHeightInv = 1.0f / maxHeight, sppInv = 1.0f / spp;
+
+    vec3 color = vec3();
+
+    union pxl_rgbx_24 rgbx;
+
+    for(int i = 0; i < spp; i++){
+        float u = (col + curand_uniform(&randState[curPixel])) * maxWidthInv;
+        float v = (row + curand_uniform(&randState[curPixel])) * maxHeightInv;
+        ray r = myCamera->get_ray(u, v, randState);
+        //printf("%f %f %f\n", u, v, myCamera->fl);
+        color += ray_color(r, world, maxDepth, &randState[curPixel]);
+    }
+    rgbx.r = sqrtf(color.r() * sppInv) * 255;
+    rgbx.g = sqrtf(color.g() * sppInv) * 255;
+    rgbx.b = sqrtf(color.b() * sppInv) * 255;
+    rgbx.na = 255;
+
+    surf2Dwrite(rgbx.b32,
+                surf,
+                col * sizeof(rgbx),
+                (maxHeight - row - 1),
+                cudaBoundaryModeZero);
+}
+
+static
+void
+pxl_glfw_fps(GLFWwindow* window)
+{
+    // static fps counters
+    static double stamp_prev  = 0.0;
+    static int    frame_count = 0;
+
+    // locals
+    const double stamp_curr = glfwGetTime();
+    const double elapsed    = stamp_curr - stamp_prev;
+
+    if (elapsed > 0.5)
+    {
+        stamp_prev = stamp_curr;
+
+        const double fps = (double)frame_count / elapsed;
+
+        int  width, height;
+        char tmp[64];
+
+        glfwGetFramebufferSize(window,&width,&height);
+
+        sprintf_s(tmp,64,"(%u x %u) - FPS: %.2f",width,height,fps);
+
+        glfwSetWindowTitle(window,tmp);
+
+        frame_count = 0;
+    }
+
+    frame_count++;
+}
+
+void myGlInit(GLFWwindow** window, const int width, const int height){
+    if (!glfwInit())
+        exit(EXIT_FAILURE);
+
+    glfwWindowHint(GLFW_DEPTH_BITS,            0);
+    glfwWindowHint(GLFW_STENCIL_BITS,          0);
+
+    //glfwWindowHint(GLFW_SRGB_CAPABLE,          GL_TRUE);
+
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
+
+    glfwWindowHint(GLFW_OPENGL_PROFILE,        GLFW_OPENGL_CORE_PROFILE);
+
+    *window = glfwCreateWindow(width,height,"GLFW / CUDA Interop",NULL,NULL);
+
+    if (*window == NULL)
+    {
+        glfwTerminate();
+        exit(EXIT_FAILURE);
+    }
+
+    glfwMakeContextCurrent(*window);
+
+    // set up GLAD
+    gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
+
+    // ignore vsync for now
+    glfwSwapInterval(0);
+}
+
+int main()
 {
     PngImage png(globalvar::kFrameWidth, globalvar::kFrameHeight);
 
@@ -201,27 +317,68 @@ int renderScene()
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
 
-    printf("Start rendering!\n");
-    std::clock_t start = std::clock();
-    render<<<blocks, threads>>>(frameBuffer, globalvar::kFrameWidth, globalvar::kFrameHeight,
-                                globalvar::kSpp, globalvar::kMaxDepth,
-                                devCamera, world, devStates);
-//    renderPerSpp<<<blocksSpp, threads>>>(frameBuffer, globalvar::kFrameWidth, globalvar::kFrameHeight,
-//                                1.0f / globalvar::kSpp, globalvar::kMaxDepth,
-//                                devCamera, world, devStates);
-    checkCudaErrors(cudaGetLastError());
-    checkCudaErrors(cudaDeviceSynchronize());
-    auto duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC;
-    std::cout<<"Time Cost: "<< duration <<'\n';
-    for(int row = 0; row < globalvar::kFrameHeight; row++){
-        for(int col = 0; col < globalvar::kFrameWidth; col++){
-            int curPixel = row * globalvar::kFrameWidth + col;
-            //std::cerr << frameBuffer[curPixel] << '\n';
-            png.saveColor(frameBuffer[curPixel], globalvar::kFrameHeight - row - 1, col);
-        }
-    }
+    GLFWwindow *window;
+    myGlInit(&window, globalvar::kFrameWidth, globalvar::kFrameHeight);
 
-    png.write("../output2/3.png");
+    cudaStream_t stream;
+    cudaEvent_t  event;
+
+    checkCudaErrors(cudaStreamCreateWithFlags(&stream,cudaStreamDefault));
+    checkCudaErrors(cudaEventCreateWithFlags(&event,cudaEventBlockingSync));
+
+    Cuda2Gl* interop = new Cuda2Gl(2);
+
+    int width, height;
+    glfwGetFramebufferSize(window,&width,&height);
+    interop->updateFrameSize(width,height);
+    glfwSetWindowUserPointer(window,interop);
+    while (!glfwWindowShouldClose(window))
+    {
+        pxl_glfw_fps(window);
+        interop->getFrameSize(&width,&height);
+        interop->mapGraphicResource(stream);
+        cudaBindSurfaceToArray(surf, interop->getCudaArray());
+
+        renderBySurface<<<blocks, threads>>>(globalvar::kFrameWidth, globalvar::kFrameHeight,
+                            globalvar::kSpp, globalvar::kMaxDepth,
+                            devCamera, world, devStates, goRender);
+        //cudaDeviceSynchronize();
+
+        //if(ii++ > count) goRender = false;
+
+        interop->unMapGraphicResource(stream);
+        interop->blitFramebuffer();
+        interop->swapBuffer();
+        glfwSwapBuffers(window);
+        glfwPollEvents(); // glfwWaitEvents();
+    }
+    delete interop;
+    glfwDestroyWindow(window);
+    glfwTerminate();
+    cudaDeviceReset();
+
+
+//    printf("Start rendering!\n");
+//    std::clock_t start = std::clock();
+//    render<<<blocks, threads>>>(frameBuffer, globalvar::kFrameWidth, globalvar::kFrameHeight,
+//                                globalvar::kSpp, globalvar::kMaxDepth,
+//                                devCamera, world, devStates);
+////    renderPerSpp<<<blocksSpp, threads>>>(frameBuffer, globalvar::kFrameWidth, globalvar::kFrameHeight,
+////                                1.0f / globalvar::kSpp, globalvar::kMaxDepth,
+////                                devCamera, world, devStates);
+//    checkCudaErrors(cudaGetLastError());
+//    checkCudaErrors(cudaDeviceSynchronize());
+//    auto duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC;
+//    std::cout<<"Time Cost: "<< duration <<'\n';
+//    for(int row = 0; row < globalvar::kFrameHeight; row++){
+//        for(int col = 0; col < globalvar::kFrameWidth; col++){
+//            int curPixel = row * globalvar::kFrameWidth + col;
+//            //std::cerr << frameBuffer[curPixel] << '\n';
+//            png.saveColor(frameBuffer[curPixel], globalvar::kFrameHeight - row - 1, col);
+//        }
+//    }
+//
+//    png.write("../output2/3.png");
     clearWorld<<<1, 1>>>(world);
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
@@ -244,8 +401,8 @@ const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 600;
 
 
-int main(){
-    renderScene();
+int draw(){
+    //renderScene();
     // glfw: initialize and configure
     // ------------------------------
     glfwInit();
@@ -256,7 +413,6 @@ int main(){
 #ifdef __APPLE__
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 #endif
-
     // glfw window creation
     // --------------------
     GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "LearnOpenGL", NULL, NULL);

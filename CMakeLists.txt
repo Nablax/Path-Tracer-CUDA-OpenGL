@@ -3,7 +3,7 @@ project(CUDARayTracer CUDA CXX)
 
 set(CMAKE_CUDA_STANDARD 14)
 
-add_executable(CUDARayTracer main.cu OpenGL_Win/glad.c)
+add_executable(CUDARayTracer main.cu OpenGL_Win/glad.c utils/cuda2gl.h)
 
 include_directories(${PROJECT_SOURCE_DIR}/OpenGL_Win/include)
 link_libraries(${PROJECT_SOURCE_DIR}/OpenGL_Win/lib)

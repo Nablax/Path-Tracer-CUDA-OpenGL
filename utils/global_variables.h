@@ -18,9 +18,9 @@ namespace globalvar{
     const float kDegToRadGPU = 0.01745329252;
     const float kDegToRad = 0.01745329252;
     const float kRadToDeg = 57.295779513;
-    const int kFrameWidth = 1200;
+    const int kFrameWidth = 800;
     const int kFrameHeight = static_cast<int>(kFrameWidth / kAspectRatio);
-    const int kSpp = 100;
+    const int kSpp = 10;
     const int kMaxDepth = 50;
     const int kThreadX = 8;
     const int kThreadY = 8;
