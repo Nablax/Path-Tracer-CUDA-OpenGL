@@ -26,6 +26,8 @@ namespace globalvar{
     const int kThreadY = 8;
     const int kBlockX = kFrameWidth / kThreadX + 1;
     const int kBlockY = kFrameHeight / kThreadY + 1;
+    const float kCameraSpeed = 2.5f;
+    const float kMouseSensitivity = 0.1f;
 }
 
 #endif //CUDARAYTRACER_GLOBAL_VARIABLES_H

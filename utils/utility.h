@@ -14,6 +14,13 @@ namespace utils{
     using point3 = vectorgpu::vec3;
     using vec3 = vectorgpu::vec3;
 
+    enum directions{
+        FORWARD,
+        BACKWARD,
+        LEFT,
+        RIGHT
+    };
+
     __host__ __device__
     inline float degrees_to_radians(float degrees) {
         return degrees * globalvar::kDegToRadGPU;

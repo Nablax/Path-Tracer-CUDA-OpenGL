@@ -10,6 +10,13 @@
 #include "cuda2gl.h"
 
 surface<void,cudaSurfaceType2D> surf;
+camera *devCamera, *hostCamera;
+RenderManager *world;
+size_t frameBufferSize = globalvar::kFrameHeight * globalvar::kFrameWidth * sizeof(vec3);
+curandState *devStates;
+dim3 blocks(globalvar::kBlockX, globalvar::kBlockY);
+dim3 threads(globalvar::kThreadX, globalvar::kThreadY);
+double deltaTime = 0;
 
 __device__ color ray_color(const ray& r, RenderManager *world, int depth, curandState *randState) {
     hit_record rec;
@@ -141,28 +148,6 @@ __global__ void render(vec3 *frameBuffer, int maxWidth, int maxHeight, int spp, 
     frameBuffer[curPixel] = vec3(r, g, b);
 }
 
-__global__ void renderPerSpp(vec3 *frameBuffer, int maxWidth, int maxHeight, float sppInv, int maxDepth,
-                       camera *myCamera,
-                       RenderManager *world, curandState *randState){
-
-    unsigned col = threadIdx.x + blockIdx.x * blockDim.x;
-    unsigned row = threadIdx.y + blockIdx.y * blockDim.y;
-
-    if(row >= maxHeight || col >= maxWidth) return;
-    //printf("%d %d %d %d\n", row, col, maxWidth, maxHeight);
-    unsigned curPixel = row * maxWidth + col;
-
-    float u = (col + curand_uniform(&randState[curPixel])) / maxWidth;
-    float v = (row + curand_uniform(&randState[curPixel])) / maxHeight;
-    ray tmpR = myCamera->get_ray(u, v, randState);
-    //printf("%f %f %f\n", u, v, myCamera->fl);
-    vec3 retColor = ray_color(tmpR, world, maxDepth, &randState[curPixel]) * sppInv;
-    frameBuffer[curPixel] += retColor;
-//    for(int i = 0; i < 3; i++){
-//        atomicAdd(&frameBuffer[curPixel].e[i], retColor.e[i]);
-//    }
-}
-
 union pxl_rgbx_24
 {
     uint1 b32;
@@ -213,43 +198,29 @@ __global__ void renderBySurface(int maxWidth, int maxHeight, int spp, int maxDep
                 cudaBoundaryModeZero);
 }
 
-static
-void
-pxl_glfw_fps(GLFWwindow* window)
+static void fpsCount(GLFWwindow* window)
 {
-    // static fps counters
-    static double stamp_prev  = 0.0;
-    static int    frame_count = 0;
-
-    // locals
-    const double stamp_curr = glfwGetTime();
-    const double elapsed    = stamp_curr - stamp_prev;
-
-    if (elapsed > 0.5)
+    static double lastFrame  = 0.0;
+    static int frameCount = 0;
+    const double currentFrame = glfwGetTime();
+    deltaTime = currentFrame - lastFrame;
+    if (deltaTime > 0.5)
     {
-        stamp_prev = stamp_curr;
-
-        const double fps = (double)frame_count / elapsed;
-
+        lastFrame = currentFrame;
+        const double fps = (double)frameCount / deltaTime;
         int  width, height;
         char tmp[64];
-
         glfwGetFramebufferSize(window,&width,&height);
-
-        sprintf_s(tmp,64,"(%u x %u) - FPS: %.2f",width,height,fps);
-
+        sprintf_s(tmp,64,"(%u x %u) - FPS: %.2f", width, height, fps);
         glfwSetWindowTitle(window,tmp);
-
-        frame_count = 0;
+        frameCount = 0;
     }
-
-    frame_count++;
+    frameCount++;
 }
 
 void myGlInit(GLFWwindow** window, const int width, const int height){
     if (!glfwInit())
         exit(EXIT_FAILURE);
-
     glfwWindowHint(GLFW_DEPTH_BITS,            0);
     glfwWindowHint(GLFW_STENCIL_BITS,          0);
 
@@ -261,51 +232,45 @@ void myGlInit(GLFWwindow** window, const int width, const int height){
     glfwWindowHint(GLFW_OPENGL_PROFILE,        GLFW_OPENGL_CORE_PROFILE);
 
     *window = glfwCreateWindow(width,height,"GLFW / CUDA Interop",NULL,NULL);
-
     if (*window == NULL)
     {
         glfwTerminate();
         exit(EXIT_FAILURE);
     }
-
     glfwMakeContextCurrent(*window);
-
     // set up GLAD
     gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
-
     // ignore vsync for now
     glfwSwapInterval(0);
 }
 
-int main()
+void processInput(GLFWwindow *window)
 {
-    PngImage png(globalvar::kFrameWidth, globalvar::kFrameHeight);
+    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS){
+        glfwSetWindowShouldClose(window, true);
+        return;
+    }
+    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+        hostCamera->processKeyboard(FORWARD, deltaTime);
+    else if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+        hostCamera->processKeyboard(BACKWARD, deltaTime);
+    else if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+        hostCamera->processKeyboard(LEFT, deltaTime);
+    else if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+        hostCamera->processKeyboard(RIGHT, deltaTime);
+    else return;
+    checkCudaErrors(cudaMemcpy(devCamera, hostCamera, sizeof(camera), cudaMemcpyHostToDevice));
+}
 
-    size_t frameBufferSize = globalvar::kFrameHeight * globalvar::kFrameWidth * sizeof(vec3);
-    vec3 *frameBuffer;
-    checkCudaErrors(cudaMallocManaged((void **)&frameBuffer, frameBufferSize));
-
-    RenderManager *world;
+void initWorldStates(){
     checkCudaErrors(cudaMalloc((void **)&world, sizeof(RenderManager)));
-
-    point3 lookfrom(13,2,3);
-    point3 lookat(0,0,0);
-    vec3 vup(0,1,0);
-    auto dist_to_focus = 10.0f;
-    auto aperture = 0.0f;
-    camera *devCamera, *hostCamera =
-            new camera(lookfrom, lookat, vup, 20, globalvar::kAspectRatio, aperture, dist_to_focus, 0.0, 1.0);
+    hostCamera = new camera(
+            vec3 (13,2,3),
+            vec3(0,0,0), 20,
+            globalvar::kAspectRatio,
+            0, 10, 0.0, 1.0);
     checkCudaErrors(cudaMalloc((void **)&devCamera, sizeof(camera)));
     checkCudaErrors(cudaMemcpy(devCamera, hostCamera, sizeof(camera), cudaMemcpyHostToDevice));
-
-    //generateWorld<<<1, 1>>>(world);
-
-    dim3 blocksSpp(globalvar::kBlockX, globalvar::kBlockY, globalvar::kSpp);
-    dim3 blocks(globalvar::kBlockX, globalvar::kBlockY);
-    dim3 threads(globalvar::kThreadX, globalvar::kThreadY);
-    //printf("%d %d %d\n", blocks.x, blocks.y, blocks.z);
-
-    curandState *devStates;
     checkCudaErrors(cudaMalloc((void **)&devStates, frameBufferSize * sizeof(curandState)));
     srand(time(nullptr));
     int seed = rand();
@@ -316,7 +281,47 @@ int main()
     generateRandomWorld<<<1, 1>>>(world, devStates);
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
+}
 
+void clearWorldStates(){
+    clearWorld<<<1, 1>>>(world);
+    checkCudaErrors(cudaGetLastError());
+    checkCudaErrors(cudaDeviceSynchronize());
+    checkCudaErrors(cudaFree(world));
+    checkCudaErrors(cudaFree(devStates));
+    checkCudaErrors(cudaFree(devCamera));
+    cudaDeviceReset();
+}
+
+void renderToPng(){
+    PngImage png(globalvar::kFrameWidth, globalvar::kFrameHeight);
+    vec3 *frameBuffer;
+    checkCudaErrors(cudaMallocManaged((void **)&frameBuffer, frameBufferSize));
+    initWorldStates();
+
+    printf("Start rendering!\n");
+    std::clock_t start = std::clock();
+    render<<<blocks, threads>>>(frameBuffer, globalvar::kFrameWidth, globalvar::kFrameHeight,
+                                globalvar::kSpp, globalvar::kMaxDepth,
+                                devCamera, world, devStates);
+    checkCudaErrors(cudaGetLastError());
+    checkCudaErrors(cudaDeviceSynchronize());
+    auto duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC;
+    std::cout<<"Time Cost: "<< duration <<'\n';
+    for(int row = 0; row < globalvar::kFrameHeight; row++){
+        for(int col = 0; col < globalvar::kFrameWidth; col++){
+            int curPixel = row * globalvar::kFrameWidth + col;
+            //std::cerr << frameBuffer[curPixel] << '\n';
+            png.saveColor(frameBuffer[curPixel], globalvar::kFrameHeight - row - 1, col);
+        }
+    }
+    png.write("../output2/3.png");
+    checkCudaErrors(cudaFree(frameBuffer));
+    clearWorldStates();
+}
+
+void renderToGL(){
+    initWorldStates();
     GLFWwindow *window;
     myGlInit(&window, globalvar::kFrameWidth, globalvar::kFrameHeight);
 
@@ -334,17 +339,15 @@ int main()
     glfwSetWindowUserPointer(window,interop);
     while (!glfwWindowShouldClose(window))
     {
-        pxl_glfw_fps(window);
+        fpsCount(window);
+        processInput(window);
         interop->getFrameSize(&width,&height);
         interop->mapGraphicResource(stream);
         cudaBindSurfaceToArray(surf, interop->getCudaArray());
 
         renderBySurface<<<blocks, threads>>>(globalvar::kFrameWidth, globalvar::kFrameHeight,
-                            globalvar::kSpp, globalvar::kMaxDepth,
-                            devCamera, world, devStates, goRender);
-        //cudaDeviceSynchronize();
-
-        //if(ii++ > count) goRender = false;
+                                             globalvar::kSpp, globalvar::kMaxDepth,
+                                             devCamera, world, devStates, goRender);
 
         interop->unMapGraphicResource(stream);
         interop->blitFramebuffer();
@@ -355,128 +358,11 @@ int main()
     delete interop;
     glfwDestroyWindow(window);
     glfwTerminate();
-    cudaDeviceReset();
-
-
-//    printf("Start rendering!\n");
-//    std::clock_t start = std::clock();
-//    render<<<blocks, threads>>>(frameBuffer, globalvar::kFrameWidth, globalvar::kFrameHeight,
-//                                globalvar::kSpp, globalvar::kMaxDepth,
-//                                devCamera, world, devStates);
-////    renderPerSpp<<<blocksSpp, threads>>>(frameBuffer, globalvar::kFrameWidth, globalvar::kFrameHeight,
-////                                1.0f / globalvar::kSpp, globalvar::kMaxDepth,
-////                                devCamera, world, devStates);
-//    checkCudaErrors(cudaGetLastError());
-//    checkCudaErrors(cudaDeviceSynchronize());
-//    auto duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC;
-//    std::cout<<"Time Cost: "<< duration <<'\n';
-//    for(int row = 0; row < globalvar::kFrameHeight; row++){
-//        for(int col = 0; col < globalvar::kFrameWidth; col++){
-//            int curPixel = row * globalvar::kFrameWidth + col;
-//            //std::cerr << frameBuffer[curPixel] << '\n';
-//            png.saveColor(frameBuffer[curPixel], globalvar::kFrameHeight - row - 1, col);
-//        }
-//    }
-//
-//    png.write("../output2/3.png");
-    clearWorld<<<1, 1>>>(world);
-    checkCudaErrors(cudaGetLastError());
-    checkCudaErrors(cudaDeviceSynchronize());
-    checkCudaErrors(cudaFree(frameBuffer));
-    checkCudaErrors(cudaFree(world));
-    checkCudaErrors(cudaFree(devStates));
-    checkCudaErrors(cudaFree(devCamera));
-    cudaDeviceReset();
-    return 0;
+    clearWorldStates();
 }
 
-
-
-
-void framebuffer_size_callback(GLFWwindow* window, int width, int height);
-void processInput(GLFWwindow *window);
-
-// settings
-const unsigned int SCR_WIDTH = 800;
-const unsigned int SCR_HEIGHT = 600;
-
-
-int draw(){
-    //renderScene();
-    // glfw: initialize and configure
-    // ------------------------------
-    glfwInit();
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-
-#ifdef __APPLE__
-    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-#endif
-    // glfw window creation
-    // --------------------
-    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "LearnOpenGL", NULL, NULL);
-    if (window == NULL)
-    {
-        std::cout << "Failed to create GLFW window" << std::endl;
-        glfwTerminate();
-        return -1;
-    }
-    glfwMakeContextCurrent(window);
-    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
-
-    // glad: load all OpenGL function pointers
-    // ---------------------------------------
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
-    {
-        std::cout << "Failed to initialize GLAD" << std::endl;
-        return -1;
-    }
-
-    // render loop
-    // -----------
-    while (!glfwWindowShouldClose(window))
-    {
-        // input
-        // -----
-        processInput(window);
-
-        // render
-        // ------
-        glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-
-        // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
-        // -------------------------------------------------------------------------------
-        glfwSwapBuffers(window);
-        glfwPollEvents();
-    }
-
-    // glfw: terminate, clearing all previously allocated GLFW resources.
-    // ------------------------------------------------------------------
-    glfwTerminate();
-    return 0;
-}
-
-// process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
-// ---------------------------------------------------------------------------------------------------------
-void processInput(GLFWwindow *window)
+int main()
 {
-    if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-        glfwSetWindowShouldClose(window, true);
-    if(glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS){
-
-    }
-        glfwSetWindowShouldClose(window, true);
+    renderToGL();
 }
-
-// glfw: whenever the window size changed (by OS or user resize) this callback function executes
-// ---------------------------------------------------------------------------------------------
-void framebuffer_size_callback(GLFWwindow* window, int width, int height)
-{
-    // make sure the viewport matches the new window dimensions; note that width and
-    // height will be significantly larger than specified on retina displays.
-    glViewport(0, 0, width, height);
-}
-
 

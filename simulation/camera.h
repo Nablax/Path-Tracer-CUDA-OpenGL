@@ -10,9 +10,8 @@
 class camera {
 public:
     __host__ __device__ camera(
-        point3 lookfrom,
-        point3 lookat,
-        vec3   vup,
+        point3 lookFrom,
+        point3 lookAt,
         float vfov, // vertical field-of-view in degrees
         float aspect_ratio,
         float aperture,
@@ -25,40 +24,51 @@ public:
         float viewport_height = 2.0f * h;
         float viewport_width = aspect_ratio * viewport_height;
 
-        w = vectorgpu::normalize(lookfrom - lookat);
-        u = vectorgpu::normalize(cross(vup, w));
-        v = cross(w, u);
+        mFront = vectorgpu::normalize(lookFrom - lookAt);
+        mRight = vectorgpu::normalize(cross(vec3(0, 1, 0), mFront));
+        mUp = cross(mFront, mRight);
 
-        origin = lookfrom;
-        horizontal = focus_dist * viewport_width * u;
-        vertical = focus_dist * viewport_height * v;
-        lower_left_corner = origin - horizontal/2 - vertical/2 - focus_dist*w;
-        lens_radius = aperture / 2;
-
+        mPosition = lookFrom;
+        mHorizontalViewportSize = focus_dist * viewport_width * mRight;
+        mVerticalViewportSize = focus_dist * viewport_height * mUp;
+        mViewportLowLeftCorner = mPosition - mHorizontalViewportSize/2 - mVerticalViewportSize/2 - focus_dist * mFront;
+        mLensRadius = aperture / 2;
         time0 = _time0;
         time1 = _time1;
+        mFocusDist = focus_dist;
     }
 
-    __device__ void updateLookfrom(vec3 delLookFrom){
-
+    __host__ void processKeyboard(utils::directions dir, float deltaTime){
+        float velocity = globalvar::kCameraSpeed * deltaTime;
+        if (dir == FORWARD)
+            mPosition += mFront * velocity;
+        if (dir == BACKWARD)
+            mPosition -= mFront * velocity;
+        if (dir == LEFT)
+            mPosition -= mRight * velocity;
+        if (dir == RIGHT)
+            mPosition += mRight * velocity;
+        mViewportLowLeftCorner = mPosition - mHorizontalViewportSize/2 - mVerticalViewportSize/2 - mFocusDist * mFront;
     }
 
     __device__ inline ray get_ray(float s, float t, curandState *randState) const {
-        vec3 rd = lens_radius * utils::randomInUnitDisk(randState);
-        vec3 offset = u * rd.x() + v * rd.y();
-        return {origin + offset,
-                lower_left_corner + s * horizontal + t * vertical - origin - offset,
+        vec3 rd = mLensRadius * utils::randomInUnitDisk(randState);
+        vec3 offset = mRight * rd.x() + mUp * rd.y();
+        return {mPosition + offset,
+                mViewportLowLeftCorner + s * mHorizontalViewportSize + t * mVerticalViewportSize - mPosition - offset,
                 utils::randomInRange(time0, time1, randState)};
     }
 
 public:
-    point3 origin;
-    point3 lower_left_corner;
-    vec3 horizontal;
-    vec3 vertical;
-    vec3 u, v, w;
-    float lens_radius;
+    point3 mPosition;
+    point3 mViewportLowLeftCorner;
+    vec3 mHorizontalViewportSize;
+    vec3 mVerticalViewportSize;
+    vec3 mRight, mUp, mFront;
+    float mFocusDist;
+    float mLensRadius;
     float time0, time1;
+    float mYaw, mPitch;
 };
 
 #endif //RAY_TRACING_CAMERA_H
