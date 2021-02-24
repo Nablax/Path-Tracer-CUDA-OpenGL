@@ -9,17 +9,17 @@
 namespace vectorgpu{
     class vec3{
         public:
-        float e[4];
+        float e[3];
         __host__ __device__ inline vec3():e{0, 0, 0}{}
-        __host__ __device__ inline vec3(float e1, float e2, float e3, float e4 = 0): e{e1, e2, e3}{}
+        __host__ __device__ inline vec3(float e1, float e2, float e3): e{e1, e2, e3}{}
         __host__ __device__ inline float x() const { return e[0];};
         __host__ __device__ inline float y() const { return e[1];};
         __host__ __device__ inline float z() const { return e[2];};
-        __host__ __device__ inline float w() const { return e[3];};
+        //__host__ __device__ inline float w() const { return e[3];};
         __host__ __device__ inline float r() const { return e[0];};
         __host__ __device__ inline float g() const { return e[1];};
         __host__ __device__ inline float b() const { return e[2];};
-        __host__ __device__ inline float a() const { return e[3];};
+        //__host__ __device__ inline float a() const { return e[3];};
         __host__ __device__ inline float operator[](int i) const {
             if(i > 3) return e[0];
             return e[i];
@@ -28,7 +28,7 @@ namespace vectorgpu{
             if(i > 3) return e[0];
             return e[i];
         };
-        __host__ __device__ inline vec3 operator-() const { return {-e[0], -e[1], -e[2], e[3]};}
+        __host__ __device__ inline vec3 operator-() const { return {-e[0], -e[1], -e[2]};}
         __host__ __device__ inline vec3& operator+=(const vec3 &inVec) {
             e[0] += inVec.e[0];
             e[1] += inVec.e[1];

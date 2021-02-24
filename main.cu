@@ -7,6 +7,7 @@
 #include "material.h"
 #include "moving_sphere.h"
 #include "bvh.h"
+#include "cuda2gl.h"
 
 __device__ color ray_color(const ray& r, RenderManager *world, int depth, curandState *randState) {
     hit_record rec;
@@ -232,9 +233,7 @@ int renderScene()
     return 0;
 }
 
-#include "OpenGL_Win/glad.c"
 
-#include "GLFW/glfw3.h"
 
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
