@@ -7,14 +7,14 @@
 
 class aabb {
 public:
-    __device__
+    __host__ __device__
     inline aabb() {}
-    __device__
+    __host__ __device__
     inline aabb(const point3& a, const point3& b) { mMin = a; mMax = b;}
 
-    __device__
+    __host__ __device__
     inline point3 getMin() const {return mMin; }
-    __device__
+    __host__ __device__
     inline point3 getMax() const {return mMax; }
 
     __device__
@@ -32,7 +32,7 @@ public:
         }
         return true;
     }
-    __device__
+    __host__ __device__
     inline void unionBoxInPlace(const aabb &box){
         mMin.e[0] = fminf(mMin.x(), box.getMin().x());
         mMin.e[1] = fminf(mMin.y(), box.getMin().y());
@@ -47,7 +47,7 @@ public:
 };
 
 namespace utils{
-    __device__
+    __host__ __device__
     inline aabb unionBox(aabb box0, aabb box1){
         point3 newMin(fminf(box0.getMin().x(), box1.getMin().x()),
                       fminf(box0.getMin().y(), box1.getMin().y()),

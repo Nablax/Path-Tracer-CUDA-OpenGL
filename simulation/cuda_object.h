@@ -12,9 +12,11 @@
 
 class CudaObj {
 public:
-    __device__ CudaObj(point3 cen, float r, material* m)
-    : mCenter(cen), mRadius(r), mType(TYPE_SPHERE){
-        mat_ptr = m;
+    __device__
+    CudaObj(){}
+    __host__ __device__
+    CudaObj(point3 cen, float r, int matID)
+    : mCenter(cen), mRadius(r), mMaterialID(matID), mType(TYPE_SPHERE){
         mBoundingBox = aabb(mCenter - vec3(mRadius, mRadius, mRadius),
                             mCenter + vec3(mRadius, mRadius, mRadius));
     };
@@ -40,7 +42,7 @@ public:
             rec.p = r.at(rec.t);
             vec3 outward_normal = (rec.p - mCenter) / mRadius;
             rec.set_face_normal(r, outward_normal);
-            rec.mat_ptr = mat_ptr;
+            rec.matID = mMaterialID;
             return true;
         }
         return false;
@@ -52,7 +54,7 @@ public:
         }
         return false;
     }
-    material *mat_ptr = nullptr;
+    int mMaterialID = -1;
     aabb mBoundingBox;
     int mType = TYPE_SPHERE;
     point3 mCenter;

@@ -24,7 +24,7 @@ __device__ color ray_color(const Ray& r, RenderManager *world, int depth, curand
     while(depth-- > 0){
         if (world->hit(curRay, 0.001f, globalvar::kInfinityGPU, rec)) {
             color nextAttenuation;
-            if (rec.mat_ptr->scatter(curRay, rec, nextAttenuation, curRay, randState))
+            if (world->mats[rec.matID]->scatter(curRay, rec, nextAttenuation, curRay, randState))
                 attenuation *= nextAttenuation;
             else attenuation = vec3();
         }
@@ -50,11 +50,11 @@ __global__ void generateWorld(RenderManager *world){
     auto material_right = new material(color(0.8, 0.6, 0.2), 1);
     world->addMat(material_right);
 
-    world->addObj(new CudaObj(point3(0.0, -100.5, -1.0), 100.0, material_ground));
-    world->addObj(new CudaObj(point3(0.0, 0.0, -1.0), 0.5, material_center));
-    world->addObj(new CudaObj(point3(-1.0, 0.0, -1.0), 0.5, material_left));
-    world->addObj(new CudaObj(point3(-1.0, 0.0, -1.0), -0.4, material_left));
-    world->addObj(new CudaObj(point3(1.0, 0.0, -1.0), 0.5, material_right));
+    world->addObj(new CudaObj(point3(0.0, -100.5, -1.0), 100.0, 0));
+    world->addObj(new CudaObj(point3(0.0, 0.0, -1.0), 0.5, 1));
+    world->addObj(new CudaObj(point3(-1.0, 0.0, -1.0), 0.5, 2));
+    world->addObj(new CudaObj(point3(-1.0, 0.0, -1.0), -0.4, 2));
+    world->addObj(new CudaObj(point3(1.0, 0.0, -1.0), 0.5, 3));
 }
 
 __global__ void generateRandomWorld(RenderManager *world, curandState* randState){
@@ -64,7 +64,7 @@ __global__ void generateRandomWorld(RenderManager *world, curandState* randState
     world->initMat(objSz);
 
     auto ground_material = new material(color(0.5, 0.5, 0.5));
-    world->addObj(new CudaObj(point3(0, -1000, 0), 1000, ground_material));
+    world->addObj(new CudaObj(point3(0, -1000, 0), 1000, 0));
     world->addMat(ground_material);
 
     for(int i = -sampleNum; i < sampleNum; i++){
@@ -79,17 +79,17 @@ __global__ void generateRandomWorld(RenderManager *world, curandState* randState
                     auto albedo = rand1 * rand2;
                     sphere_material = new material(albedo);
                     auto center2 = center + vec3(0, rand2.y() * 0.5f, 0);
-                    world->addObj(new CudaObj(center, 0.2, sphere_material));
+                    world->addObj(new CudaObj(center, 0.2, world->matLastIdx));
                 }
                 else if(choose_mat < 0.95){
                     auto albedo = rand1 / 2 + vec3(0.5f, 0.5f, 0.5f);
                     float fuzz = rand2.x() / 2;
                     sphere_material = new material(albedo, fuzz);
-                    world->addObj(new CudaObj(center, 0.2, sphere_material));
+                    world->addObj(new CudaObj(center, 0.2, world->matLastIdx));
                 }
                 else{
                     sphere_material = new material(1.5f);
-                    world->addObj(new CudaObj(center, 0.2, sphere_material));
+                    world->addObj(new CudaObj(center, 0.2, world->matLastIdx));
                 }
                 world->addMat(sphere_material);
 
@@ -97,17 +97,18 @@ __global__ void generateRandomWorld(RenderManager *world, curandState* randState
         }
     }
     auto material1 = new material(1.5f);
+
+    world->addObj(new CudaObj(point3(4, 1, 0), 1.0, world->matLastIdx));
+    world->addObj(new CudaObj(point3(4, 1, 0), -0.9, world->matLastIdx));
     world->addMat(material1);
-    world->addObj(new CudaObj(point3(4, 1, 0), 1.0, material1));
-    world->addObj(new CudaObj(point3(4, 1, 0), -0.9, material1));
 
     auto material2 = new material(color(1, 0, 0.4));
+    world->addObj(new CudaObj(point3(-4, 1, 0), 1.0, world->matLastIdx));
     world->addMat(material2);
-    world->addObj(new CudaObj(point3(-4, 1, 0), 1.0, material2));
 
     auto material3 = new material(color(0.7, 0.6, 0.5), 0.0);
+    world->addObj(new CudaObj(point3(0, 1, 0), 1.0, world->matLastIdx));
     world->addMat(material3);
-    world->addObj(new CudaObj(point3(0, 1, 0), 1.0, material3));
 
     printf("%f", world->mWorldBoundingBox.getMin().x());
 }
