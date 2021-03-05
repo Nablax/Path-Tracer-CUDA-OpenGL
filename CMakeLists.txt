@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.17)
 project(CUDARayTracer CUDA CXX)
 
 set(CMAKE_CUDA_STANDARD 14)
+set(CMAKE_BUILD_TYPE RELEASE)
 
 add_executable(CUDARayTracer main.cu OpenGL_Win/glad.c utils/cuda2gl.h)
 

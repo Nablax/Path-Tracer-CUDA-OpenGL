@@ -32,6 +32,16 @@ public:
         }
         return true;
     }
+    __device__
+    inline void unionBoxInPlace(const aabb &box){
+        mMin.e[0] = fminf(mMin.x(), box.getMin().x());
+        mMin.e[1] = fminf(mMin.y(), box.getMin().y());
+        mMin.e[2] = fminf(mMin.z(), box.getMin().z());
+
+        mMax.e[0] = fmaxf(mMax.x(), box.getMax().x());
+        mMax.e[1] = fmaxf(mMax.y(), box.getMax().y());
+        mMax.e[2] = fmaxf(mMax.z(), box.getMax().z());
+    }
     point3 mMin;
     point3 mMax;
 };

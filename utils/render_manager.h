@@ -31,6 +31,7 @@ public:
         if(objMaxSize <= 0) return;
         objLastIdx %= objMaxSize;
         objects[objLastIdx++] = o;
+        mWorldBoundingBox.unionBoxInPlace(o->mBoundingBox);
     }
     __device__ inline void addMat(material *m){
         if(matMaxSize <= 0) return;
@@ -44,6 +45,7 @@ public:
         objects = new hittable*[sz];
         objLastIdx = 0;
         objMaxSize = sz;
+        mWorldBoundingBox.mMin = mWorldBoundingBox.mMax = vec3();
     }
     __device__ inline void initMat(size_t sz){
         mats = new material*[sz];
@@ -56,6 +58,7 @@ public:
 public:
     hittable **objects;
     material **mats;
+    aabb mWorldBoundingBox;
     size_t objLastIdx = 0;
     size_t matLastIdx = 0;
     size_t matMaxSize = 0;

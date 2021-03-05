@@ -11,10 +11,18 @@ public:
     __device__
     moving_sphere() {}
     __device__
-    moving_sphere(
-            point3 cen0, point3 cen1, float _time0, float _time1, float r, material* m)
-            : center0(cen0), center1(cen1), time0(_time0), time1(_time1), radius(r), mat_ptr(m)
-    {};
+    moving_sphere(point3 cen0, point3 cen1, float _time0, float _time1, float r, material* m)
+        : center0(cen0), center1(cen1), time0(_time0), time1(_time1), radius(r)
+    {
+        mat_ptr = m;
+        aabb box0(
+                center(_time0) - vec3(radius, radius, radius),
+                center(_time0) + vec3(radius, radius, radius));
+        aabb box1(
+                center(_time1) - vec3(radius, radius, radius),
+                center(_time1) + vec3(radius, radius, radius));
+        mBoundingBox = unionBox(box0, box1);
+    };
 
     __device__
     bool hit(
@@ -29,7 +37,6 @@ public:
     point3 center0, center1;
     float time0, time1;
     float radius;
-    material* mat_ptr;
 };
 
 __device__

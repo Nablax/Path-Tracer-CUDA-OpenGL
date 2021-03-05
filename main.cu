@@ -60,13 +60,15 @@ __global__ void generateWorld(RenderManager *world){
 }
 
 __global__ void generateRandomWorld(RenderManager *world, curandState* randState){
-    world->initObj(600);
-    world->initMat(600);
+    int sampleNum = 0;
+    int objSz = sampleNum * sampleNum * 4 + 4 + 1;
+    world->initObj(objSz);
+    world->initMat(objSz);
 
     auto ground_material = new lambertian(color(0.5, 0.5, 0.5));
     world->addObj(new sphere(point3(0,-1000,0), 1000, ground_material));
     world->addMat(ground_material);
-    int sampleNum = 0;
+
     for(int i = -sampleNum; i < sampleNum; i++){
         for(int j = -sampleNum; j < sampleNum; j++){
             float choose_mat = curand_uniform(randState);
@@ -79,7 +81,7 @@ __global__ void generateRandomWorld(RenderManager *world, curandState* randState
                     auto albedo = rand1 * rand2;
                     sphere_material = new lambertian(albedo);
                     auto center2 = center + vec3(0, rand2.y() * 0.5f, 0);
-                    world->addObj(new moving_sphere(center, center2, 0.0, 1.0, 0.2, sphere_material));
+                    world->addObj(new sphere(center, 0.2, sphere_material));
                 }
                 else if(choose_mat < 0.95){
                     auto albedo = rand1 / 2 + vec3(0.5f, 0.5f, 0.5f);
@@ -108,6 +110,8 @@ __global__ void generateRandomWorld(RenderManager *world, curandState* randState
     auto material3 = new metal(color(0.7, 0.6, 0.5), 0.0);
     world->addMat(material3);
     world->addObj(new sphere(point3(0, 1, 0), 1.0, material3));
+
+    printf("%f", world->mWorldBoundingBox.getMin().x());
 }
 
 __global__ void clearWorld(RenderManager *world){
@@ -134,17 +138,17 @@ __global__ void render(vec3 *frameBuffer, int maxWidth, int maxHeight, int spp, 
     //printf("%d %d %d %d\n", row, col, maxWidth, maxHeight);
     unsigned curPixel = row * maxWidth + col;
     float maxWidthInv = 1.0f / maxWidth, maxHeightInv = 1.0f / maxHeight, sppInv = 1.0f / spp;
-
+    color finalColor = color();
     for(int i = 0; i < spp; i++){
         float u = (col + curand_uniform(&randState[curPixel])) * maxWidthInv;
         float v = (row + curand_uniform(&randState[curPixel])) * maxHeightInv;
         ray r = myCamera->get_ray(u, v, randState);
         //printf("%f %f %f\n", u, v, myCamera->fl);
-        frameBuffer[curPixel] += ray_color(r, world, maxDepth, &randState[curPixel]);
+        finalColor += ray_color(r, world, maxDepth, &randState[curPixel]);
     }
-    float r = sqrtf(frameBuffer[curPixel].r() * sppInv);
-    float g = sqrtf(frameBuffer[curPixel].g() * sppInv);
-    float b = sqrtf(frameBuffer[curPixel].b() * sppInv);
+    float r = sqrtf(finalColor.r() * sppInv);
+    float g = sqrtf(finalColor.g() * sppInv);
+    float b = sqrtf(finalColor.b() * sppInv);
     frameBuffer[curPixel] = vec3(r, g, b);
 }
 

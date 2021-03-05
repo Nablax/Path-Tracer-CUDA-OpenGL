@@ -6,7 +6,7 @@
 #define CUDARAYTRACER_MATERIAL_H
 
 #include "physical.h"
-#include "hittable.h"
+#include "hit_record.h"
 
 struct hit_record;
 

@@ -12,14 +12,17 @@ class sphere : public hittable{
 public:
     __device__ sphere() {}
     __device__ sphere(point3 cen, float r, material* m)
-            : center(cen), radius(r), mat_ptr(m) {};
+            : center(cen), radius(r){
+        mat_ptr = m;
+        mBoundingBox = aabb(center - vec3(radius, radius, radius),
+                            center + vec3(radius, radius, radius));
+    };
     __device__ virtual inline bool hit(
             const ray& r, float t_min, float t_max, hit_record& rec) const override;
     __device__
     virtual inline bool bounding_box(float time0, float time1, aabb& output_box) const override;
 public:
     point3 center;
-    material* mat_ptr;
     float radius;
 };
 
