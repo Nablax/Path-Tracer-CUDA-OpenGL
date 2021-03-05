@@ -18,7 +18,7 @@ public:
             : bvh_node(list->objects, 0, list->objLastIdx, time0, time1){}
 
     __device__
-    bvh_node(CudaObj **src_objects,
+    bvh_node(CudaObj *src_objects,
              size_t start, size_t end, float time0, float time1);
 
     __device__
@@ -49,7 +49,7 @@ inline bool bvh_node::hit(const Ray &r, float t_min, float t_max, hit_record &re
 }
 
 __device__
-inline bvh_node::bvh_node(CudaObj **src_objects, size_t start, size_t end, float time0, float time1) {
+inline bvh_node::bvh_node(CudaObj *src_objects, size_t start, size_t end, float time0, float time1) {
 
 }
 

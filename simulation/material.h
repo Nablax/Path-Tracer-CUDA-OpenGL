@@ -17,6 +17,8 @@ struct hit_record;
 class material {
 public:
     __host__ __device__
+    material(){}
+    __host__ __device__
     material(const color& a) : mAlbedo(a), mType(LAMBERTIAN) {}
     __host__ __device__
     material(const color& a, float f) : mAlbedo(a), mFuzz(f < 1 ? f : 1), mType(METAL)  {}

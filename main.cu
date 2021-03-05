@@ -24,7 +24,7 @@ __device__ color ray_color(const Ray& r, RenderManager *world, int depth, curand
     while(depth-- > 0){
         if (world->hit(curRay, 0.001f, globalvar::kInfinityGPU, rec)) {
             color nextAttenuation;
-            if (world->mats[rec.matID]->scatter(curRay, rec, nextAttenuation, curRay, randState))
+            if (world->mats[rec.matID].scatter(curRay, rec, nextAttenuation, curRay, randState))
                 attenuation *= nextAttenuation;
             else attenuation = vec3();
         }

@@ -17,38 +17,31 @@ public:
         initMat(matSz);
     }
     __device__ inline void clear() {
-        for(int i = 0; i < objLastIdx; i++){
-            delete objects[i];
-        }
-        delete objects;
-
-        for(int i = 0; i < matLastIdx; i++){
-            delete mats[i];
-        }
-        delete mats;
+        delete[] objects;
+        delete[] mats;
     }
     __device__ inline void addObj(CudaObj *o){
         if(objMaxSize <= 0) return;
         objLastIdx %= objMaxSize;
-        objects[objLastIdx++] = o;
+        objects[objLastIdx++] = *o;
         mWorldBoundingBox.unionBoxInPlace(o->mBoundingBox);
     }
     __device__ inline void addMat(material *m){
         if(matMaxSize <= 0) return;
         matLastIdx %= matMaxSize;
-        mats[matLastIdx++] = m;
+        mats[matLastIdx++] = *m;
     }
     __device__ inline bool hit(const Ray& r, float t_min, float t_max, hit_record& rec) const;
     __device__
     bool unionAllBox(float time0, float time1, aabb& output_box) const ;
     __device__ inline void initObj(size_t sz){
-        objects = new CudaObj*[sz];
+        objects = new CudaObj[sz];
         objLastIdx = 0;
         objMaxSize = sz;
         mWorldBoundingBox.mMin = mWorldBoundingBox.mMax = vec3();
     }
     __device__ inline void initMat(size_t sz){
-        mats = new material*[sz];
+        mats = new material[sz];
         matLastIdx = 0;
         matMaxSize = sz;
     }
@@ -56,8 +49,8 @@ public:
         clear();
     }
 public:
-    CudaObj **objects;
-    material **mats;
+    CudaObj *objects;
+    material *mats;
     aabb mWorldBoundingBox;
     size_t objLastIdx = 0;
     size_t matLastIdx = 0;
@@ -71,7 +64,7 @@ __device__ inline bool RenderManager::hit(const Ray &r, float t_min, float t_max
     auto closest_so_far = t_max;
 
     for (int i = 0; i < objLastIdx; i++) {
-        if (objects[i]->hit(r, t_min, closest_so_far, temp_rec)) {
+        if (objects[i].hit(r, t_min, closest_so_far, temp_rec)) {
             hit_anything = true;
             closest_so_far = temp_rec.t;
             rec = temp_rec;
@@ -83,10 +76,10 @@ __device__ inline bool RenderManager::hit(const Ray &r, float t_min, float t_max
 __device__ bool RenderManager::unionAllBox(float time0, float time1, aabb &output_box) const {
     if(objLastIdx <= 0) return false;
     aabb tmpBox;
-    if(!objects[0]->bounding_box(time0, time1, tmpBox)) return false;
+    if(!objects[0].bounding_box(time0, time1, tmpBox)) return false;
     output_box = tmpBox;
     for(int i = 1; i < objLastIdx; i++){
-        if(!objects[0]->bounding_box(time0, time1, tmpBox)) return false;
+        if(!objects[0].bounding_box(time0, time1, tmpBox)) return false;
         output_box = utils::unionBox(output_box, tmpBox);
     }
     return true;

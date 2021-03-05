@@ -12,7 +12,7 @@
 
 class CudaObj {
 public:
-    __device__
+    __host__ __device__
     CudaObj(){}
     __host__ __device__
     CudaObj(point3 cen, float r, int matID)
