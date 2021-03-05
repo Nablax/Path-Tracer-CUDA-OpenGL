@@ -10,90 +10,58 @@
 
 struct hit_record;
 
+#define LAMBERTIAN 1
+#define METAL 2
+#define DIELECTRIC 4
+
 class material {
 public:
+    __host__ __device__
+    material(const color& a) : mAlbedo(a), mType(LAMBERTIAN) {}
+    __host__ __device__
+    material(const color& a, float f) : mAlbedo(a), mFuzz(f < 1 ? f : 1), mType(METAL)  {}
+    __host__ __device__
+    material(const float index_of_refraction) : mIr(index_of_refraction), mType(DIELECTRIC) {}
     __device__
-    virtual bool scatter(
+    bool scatter(
         const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, curandState *randState
-    ) const = 0;
-
-    __device__
-    virtual ~material(){}
-};
-
-class lambertian : public material {
-public:
-    __device__
-    lambertian(const color& a) : albedo(a) {}
-
-    __device__
-    virtual bool scatter(
-        const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, curandState *randState
-    ) const override {
-        vec3 scatter_direction = rec.normal + utils::randomOnUnitSphereDiscard(randState);
-        if (scatter_direction.near_zero())
-            scatter_direction = rec.normal;
-        scattered = ray(rec.p, scatter_direction, r_in.time());
-        attenuation = albedo;
-        return true;
+    ) {
+        if(mType == LAMBERTIAN){
+            vec3 scatter_direction = rec.normal + utils::randomOnUnitSphereDiscard(randState);
+            if (scatter_direction.near_zero())
+                scatter_direction = rec.normal;
+            scattered = ray(rec.p, scatter_direction, r_in.time());
+            attenuation = mAlbedo;
+            return true;
+        }
+        if(mType == METAL){
+            vec3 reflected = rayphysics::reflect(vectorgpu::normalize(r_in.direction()), rec.normal);
+            scattered = ray(rec.p, reflected + mFuzz * utils::randomInUnitSphereDiscard(randState), r_in.time());
+            attenuation = mAlbedo;
+            return (dot(scattered.direction(), rec.normal) > 0);
+        }
+        if(mType == DIELECTRIC){
+            attenuation = color(1.0, 1.0, 1.0);
+            float refraction_ratio = rec.front_face ? (1.0f / mIr) : mIr;
+            vec3 unit_direction = vectorgpu::normalize(r_in.direction());
+            float cos_theta = fminf(dot(-unit_direction, rec.normal), 1.0);
+            float sin_theta = sqrtf(1.0f - cos_theta*cos_theta);
+            bool cannot_refract = refraction_ratio * sin_theta > 1.0;
+            vec3 direction;
+            if (cannot_refract || rayphysics::reflectance(cos_theta, refraction_ratio) > curand_uniform(randState))
+                direction = rayphysics::reflect(unit_direction, rec.normal);
+            else
+                direction = rayphysics::refract(unit_direction, rec.normal, refraction_ratio);
+            scattered = ray(rec.p, direction, r_in.time());
+            return true;
+        }
+        return false;
     }
-
 public:
-    color albedo;
-};
-
-class metal : public material {
-public:
-    __device__
-    metal(const color& a, float f) : albedo(a), fuzz(f < 1 ? f : 1) {}
-
-    __device__
-    virtual bool scatter(
-            const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, curandState *randState
-    ) const override {
-        vec3 reflected = rayphysics::reflect(vectorgpu::normalize(r_in.direction()), rec.normal);
-        scattered = ray(rec.p, reflected + fuzz * utils::randomInUnitSphereDiscard(randState), r_in.time());
-        attenuation = albedo;
-        return (dot(scattered.direction(), rec.normal) > 0);
-    }
-
-public:
-    color albedo;
-    float fuzz;
-};
-
-class dielectric : public material {
-public:
-    __device__
-    dielectric(float index_of_refraction) : ir(index_of_refraction) {}
-
-    __device__
-    virtual bool scatter(
-            const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, curandState *randState
-    ) const override {
-        attenuation = color(1.0, 1.0, 1.0);
-        float refraction_ratio = rec.front_face ? (1.0f / ir) : ir;
-
-        vec3 unit_direction = vectorgpu::normalize(r_in.direction());
-        float cos_theta = fminf(dot(-unit_direction, rec.normal), 1.0);
-        float sin_theta = sqrtf(1.0f - cos_theta*cos_theta);
-
-        bool cannot_refract = refraction_ratio * sin_theta > 1.0;
-        vec3 direction;
-
-        if (cannot_refract || rayphysics::reflectance(cos_theta, refraction_ratio) > curand_uniform(randState))
-            direction = rayphysics::reflect(unit_direction, rec.normal);
-        else
-            direction = rayphysics::refract(unit_direction, rec.normal, refraction_ratio);
-
-        scattered = ray(rec.p, direction, r_in.time());
-
-        return true;
-    }
-
-public:
-    float ir; // Index of Refraction
-
+    color mAlbedo;
+    float mFuzz = 0;
+    float mIr = 0;
+    int mType = LAMBERTIAN;
 };
 
 

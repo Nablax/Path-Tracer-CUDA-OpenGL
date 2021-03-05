@@ -43,13 +43,13 @@ __global__ void generateWorld(RenderManager *world){
     world->initObj(5);
     world->initMat(4);
 
-    auto material_ground = new lambertian(color(0.8, 0.8, 0.0));
+    auto material_ground = new material(color(0.8, 0.8, 0.0));
     world->addMat(material_ground);
-    auto material_center = new lambertian(color(0.1, 0.2, 0.5));
+    auto material_center = new material(color(0.1, 0.2, 0.5));
     world->addMat(material_center);
-    auto material_left = new dielectric(1.5f);
+    auto material_left = new material(1.5f);
     world->addMat(material_left);
-    auto material_right = new metal(color(0.8, 0.6, 0.2), 1);
+    auto material_right = new material(color(0.8, 0.6, 0.2), 1);
     world->addMat(material_right);
 
     world->addObj(new sphere(point3( 0.0, -100.5, -1.0), 100.0, material_ground));
@@ -65,7 +65,7 @@ __global__ void generateRandomWorld(RenderManager *world, curandState* randState
     world->initObj(objSz);
     world->initMat(objSz);
 
-    auto ground_material = new lambertian(color(0.5, 0.5, 0.5));
+    auto ground_material = new material(color(0.5, 0.5, 0.5));
     world->addObj(new sphere(point3(0,-1000,0), 1000, ground_material));
     world->addMat(ground_material);
 
@@ -79,18 +79,18 @@ __global__ void generateRandomWorld(RenderManager *world, curandState* randState
                 auto rand2 = vec3(curand_uniform(randState), curand_uniform(randState), curand_uniform(randState));
                 if(choose_mat < 0.8){
                     auto albedo = rand1 * rand2;
-                    sphere_material = new lambertian(albedo);
+                    sphere_material = new material(albedo);
                     auto center2 = center + vec3(0, rand2.y() * 0.5f, 0);
                     world->addObj(new sphere(center, 0.2, sphere_material));
                 }
                 else if(choose_mat < 0.95){
                     auto albedo = rand1 / 2 + vec3(0.5f, 0.5f, 0.5f);
                     float fuzz = rand2.x() / 2;
-                    sphere_material = new metal(albedo, fuzz);
+                    sphere_material = new material(albedo, fuzz);
                     world->addObj(new sphere(center, 0.2, sphere_material));
                 }
                 else{
-                    sphere_material = new dielectric(1.5f);
+                    sphere_material = new material(1.5f);
                     world->addObj(new sphere(center, 0.2, sphere_material));
                 }
                 world->addMat(sphere_material);
@@ -98,16 +98,16 @@ __global__ void generateRandomWorld(RenderManager *world, curandState* randState
             }
         }
     }
-    auto material1 = new dielectric(1.5f);
+    auto material1 = new material(1.5f);
     world->addMat(material1);
     world->addObj(new sphere(point3(4, 1, 0), 1.0, material1));
     world->addObj(new sphere(point3(4, 1, 0), -0.9, material1));
 
-    auto material2 = new lambertian(color(1, 0, 0.4));
+    auto material2 = new material(color(1, 0, 0.4));
     world->addMat(material2);
     world->addObj(new sphere(point3(-4, 1, 0), 1.0, material2));
 
-    auto material3 = new metal(color(0.7, 0.6, 0.5), 0.0);
+    auto material3 = new material(color(0.7, 0.6, 0.5), 0.0);
     world->addMat(material3);
     world->addObj(new sphere(point3(0, 1, 0), 1.0, material3));
 
