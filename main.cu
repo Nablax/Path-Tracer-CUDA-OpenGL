@@ -3,9 +3,7 @@
 #include "cuda_check.h"
 #include "camera.h"
 #include "render_manager.h"
-#include "sphere.h"
 #include "material.h"
-#include "moving_sphere.h"
 #include "bvh.h"
 #include "cuda2gl.h"
 
@@ -18,9 +16,9 @@ dim3 blocks(globalvar::kBlockX, globalvar::kBlockY);
 dim3 threads(globalvar::kThreadX, globalvar::kThreadY);
 double deltaTime = 0;
 
-__device__ color ray_color(const ray& r, RenderManager *world, int depth, curandState *randState) {
+__device__ color ray_color(const Ray& r, RenderManager *world, int depth, curandState *randState) {
     hit_record rec;
-    ray curRay = r;
+    Ray curRay = r;
     //printf("in ray color\n");
     color attenuation(1, 1, 1);
     while(depth-- > 0){
@@ -52,11 +50,11 @@ __global__ void generateWorld(RenderManager *world){
     auto material_right = new material(color(0.8, 0.6, 0.2), 1);
     world->addMat(material_right);
 
-    world->addObj(new sphere(point3( 0.0, -100.5, -1.0), 100.0, material_ground));
-    world->addObj(new sphere(point3( 0.0, 0.0, -1.0),   0.5, material_center));
-    world->addObj(new sphere(point3(-1.0, 0.0, -1.0),   0.5, material_left));
-    world->addObj(new sphere(point3(-1.0, 0.0, -1.0),   -0.4, material_left));
-    world->addObj(new sphere(point3( 1.0, 0.0, -1.0),   0.5, material_right));
+    world->addObj(new CudaObj(point3(0.0, -100.5, -1.0), 100.0, material_ground));
+    world->addObj(new CudaObj(point3(0.0, 0.0, -1.0), 0.5, material_center));
+    world->addObj(new CudaObj(point3(-1.0, 0.0, -1.0), 0.5, material_left));
+    world->addObj(new CudaObj(point3(-1.0, 0.0, -1.0), -0.4, material_left));
+    world->addObj(new CudaObj(point3(1.0, 0.0, -1.0), 0.5, material_right));
 }
 
 __global__ void generateRandomWorld(RenderManager *world, curandState* randState){
@@ -66,7 +64,7 @@ __global__ void generateRandomWorld(RenderManager *world, curandState* randState
     world->initMat(objSz);
 
     auto ground_material = new material(color(0.5, 0.5, 0.5));
-    world->addObj(new sphere(point3(0,-1000,0), 1000, ground_material));
+    world->addObj(new CudaObj(point3(0, -1000, 0), 1000, ground_material));
     world->addMat(ground_material);
 
     for(int i = -sampleNum; i < sampleNum; i++){
@@ -81,17 +79,17 @@ __global__ void generateRandomWorld(RenderManager *world, curandState* randState
                     auto albedo = rand1 * rand2;
                     sphere_material = new material(albedo);
                     auto center2 = center + vec3(0, rand2.y() * 0.5f, 0);
-                    world->addObj(new sphere(center, 0.2, sphere_material));
+                    world->addObj(new CudaObj(center, 0.2, sphere_material));
                 }
                 else if(choose_mat < 0.95){
                     auto albedo = rand1 / 2 + vec3(0.5f, 0.5f, 0.5f);
                     float fuzz = rand2.x() / 2;
                     sphere_material = new material(albedo, fuzz);
-                    world->addObj(new sphere(center, 0.2, sphere_material));
+                    world->addObj(new CudaObj(center, 0.2, sphere_material));
                 }
                 else{
                     sphere_material = new material(1.5f);
-                    world->addObj(new sphere(center, 0.2, sphere_material));
+                    world->addObj(new CudaObj(center, 0.2, sphere_material));
                 }
                 world->addMat(sphere_material);
 
@@ -100,16 +98,16 @@ __global__ void generateRandomWorld(RenderManager *world, curandState* randState
     }
     auto material1 = new material(1.5f);
     world->addMat(material1);
-    world->addObj(new sphere(point3(4, 1, 0), 1.0, material1));
-    world->addObj(new sphere(point3(4, 1, 0), -0.9, material1));
+    world->addObj(new CudaObj(point3(4, 1, 0), 1.0, material1));
+    world->addObj(new CudaObj(point3(4, 1, 0), -0.9, material1));
 
     auto material2 = new material(color(1, 0, 0.4));
     world->addMat(material2);
-    world->addObj(new sphere(point3(-4, 1, 0), 1.0, material2));
+    world->addObj(new CudaObj(point3(-4, 1, 0), 1.0, material2));
 
     auto material3 = new material(color(0.7, 0.6, 0.5), 0.0);
     world->addMat(material3);
-    world->addObj(new sphere(point3(0, 1, 0), 1.0, material3));
+    world->addObj(new CudaObj(point3(0, 1, 0), 1.0, material3));
 
     printf("%f", world->mWorldBoundingBox.getMin().x());
 }
@@ -142,7 +140,7 @@ __global__ void render(vec3 *frameBuffer, int maxWidth, int maxHeight, int spp, 
     for(int i = 0; i < spp; i++){
         float u = (col + curand_uniform(&randState[curPixel])) * maxWidthInv;
         float v = (row + curand_uniform(&randState[curPixel])) * maxHeightInv;
-        ray r = myCamera->get_ray(u, v, randState);
+        Ray r = myCamera->get_ray(u, v, randState);
         //printf("%f %f %f\n", u, v, myCamera->fl);
         finalColor += ray_color(r, world, maxDepth, &randState[curPixel]);
     }
@@ -186,7 +184,7 @@ __global__ void renderBySurface(int maxWidth, int maxHeight, int spp, int maxDep
     for(int i = 0; i < spp; i++){
         float u = (col + curand_uniform(&randState[curPixel])) * maxWidthInv;
         float v = (row + curand_uniform(&randState[curPixel])) * maxHeightInv;
-        ray r = myCamera->get_ray(u, v, randState);
+        Ray r = myCamera->get_ray(u, v, randState);
         //printf("%f %f %f\n", u, v, myCamera->fl);
         color += ray_color(r, world, maxDepth, &randState[curPixel]);
     }

@@ -5,7 +5,7 @@
 #ifndef CUDARAYTRACER_RENDER_MANAGER_H
 #define CUDARAYTRACER_RENDER_MANAGER_H
 
-#include "hittable.h"
+#include "cuda_object.h"
 #include "material.h"
 #include "aabb.h"
 
@@ -27,7 +27,7 @@ public:
         }
         delete mats;
     }
-    __device__ inline void addObj(hittable *o){
+    __device__ inline void addObj(CudaObj *o){
         if(objMaxSize <= 0) return;
         objLastIdx %= objMaxSize;
         objects[objLastIdx++] = o;
@@ -38,11 +38,11 @@ public:
         matLastIdx %= matMaxSize;
         mats[matLastIdx++] = m;
     }
-    __device__ inline bool hit(const ray& r, float t_min, float t_max, hit_record& rec) const;
+    __device__ inline bool hit(const Ray& r, float t_min, float t_max, hit_record& rec) const;
     __device__
     bool unionAllBox(float time0, float time1, aabb& output_box) const ;
     __device__ inline void initObj(size_t sz){
-        objects = new hittable*[sz];
+        objects = new CudaObj*[sz];
         objLastIdx = 0;
         objMaxSize = sz;
         mWorldBoundingBox.mMin = mWorldBoundingBox.mMax = vec3();
@@ -56,7 +56,7 @@ public:
         clear();
     }
 public:
-    hittable **objects;
+    CudaObj **objects;
     material **mats;
     aabb mWorldBoundingBox;
     size_t objLastIdx = 0;
@@ -65,7 +65,7 @@ public:
     size_t objMaxSize = 0;
 };
 
-__device__ inline bool RenderManager::hit(const ray &r, float t_min, float t_max, hit_record &rec) const {
+__device__ inline bool RenderManager::hit(const Ray &r, float t_min, float t_max, hit_record &rec) const {
     hit_record temp_rec;
     bool hit_anything = false;
     auto closest_so_far = t_max;

@@ -5,23 +5,23 @@
 #ifndef CUDARAYTRACER_RAY_H
 #define CUDARAYTRACER_RAY_H
 
-class ray {
+class Ray {
 public:
-    __device__ ray() {}
-    __device__ ray(const point3& origin, const vec3& direction, float time = 0.0f):
-    orig(origin), dir(direction), tm(time){}
+    __device__ Ray() {}
+    __device__ Ray(const point3& origin, const vec3& direction, float time = 0.0f):
+            mOrigin(origin), mDir(direction), mTime(time){}
 
-    __device__ point3 origin() const { return orig; }
-    __device__ vec3 direction() const { return dir; }
-    __device__ float time() const {return tm;};
+    __device__ point3 origin() const { return mOrigin; }
+    __device__ vec3 direction() const { return mDir; }
+    __device__ float time() const {return mTime;};
 
     __device__ point3 at(float t) const {
-        return orig + t * dir;
+        return mOrigin + t * mDir;
     }
-public:
-    point3 orig;
-    vec3 dir;
-    float tm;
+private:
+    point3 mOrigin;
+    vec3 mDir;
+    float mTime;
 };
 
 #endif //CUDARAYTRACER_RAY_H

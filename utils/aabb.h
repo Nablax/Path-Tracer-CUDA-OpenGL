@@ -18,7 +18,7 @@ public:
     inline point3 getMax() const {return mMax; }
 
     __device__
-    inline bool hit(const ray& r, float t_min, float t_max) const {
+    inline bool hit(const Ray& r, float t_min, float t_max) const {
         vec3 rayOrig = r.origin(), rayDir = r.direction();
         for (int i = 0; i < 3; i++) {
             float dirInv = 1.0f / rayDir[i];

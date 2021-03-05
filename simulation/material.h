@@ -24,19 +24,19 @@ public:
     material(const float index_of_refraction) : mIr(index_of_refraction), mType(DIELECTRIC) {}
     __device__
     bool scatter(
-        const ray& r_in, const hit_record& rec, color& attenuation, ray& scattered, curandState *randState
+            const Ray& r_in, const hit_record& rec, color& attenuation, Ray& scattered, curandState *randState
     ) {
         if(mType == LAMBERTIAN){
             vec3 scatter_direction = rec.normal + utils::randomOnUnitSphereDiscard(randState);
             if (scatter_direction.near_zero())
                 scatter_direction = rec.normal;
-            scattered = ray(rec.p, scatter_direction, r_in.time());
+            scattered = Ray(rec.p, scatter_direction, r_in.time());
             attenuation = mAlbedo;
             return true;
         }
         if(mType == METAL){
             vec3 reflected = rayphysics::reflect(vectorgpu::normalize(r_in.direction()), rec.normal);
-            scattered = ray(rec.p, reflected + mFuzz * utils::randomInUnitSphereDiscard(randState), r_in.time());
+            scattered = Ray(rec.p, reflected + mFuzz * utils::randomInUnitSphereDiscard(randState), r_in.time());
             attenuation = mAlbedo;
             return (dot(scattered.direction(), rec.normal) > 0);
         }
@@ -52,7 +52,7 @@ public:
                 direction = rayphysics::reflect(unit_direction, rec.normal);
             else
                 direction = rayphysics::refract(unit_direction, rec.normal, refraction_ratio);
-            scattered = ray(rec.p, direction, r_in.time());
+            scattered = Ray(rec.p, direction, r_in.time());
             return true;
         }
         return false;

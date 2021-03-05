@@ -51,7 +51,7 @@ public:
         mViewportLowLeftCorner = mPosition - mHorizontalViewportSize/2 - mVerticalViewportSize/2 - mFocusDist * mFront;
     }
 
-    __device__ inline ray get_ray(float s, float t, curandState *randState) const {
+    __device__ inline Ray get_ray(float s, float t, curandState *randState) const {
         vec3 rd = mLensRadius * utils::randomInUnitDisk(randState);
         vec3 offset = mRight * rd.x() + mUp * rd.y();
         return {mPosition + offset,

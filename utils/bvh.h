@@ -5,10 +5,10 @@
 #ifndef CUDARAYTRACER_BVH_H
 #define CUDARAYTRACER_BVH_H
 
-#include "hittable.h"
+#include "cuda_object.h"
 #include "render_manager.h"
 
-class bvh_node : public hittable {
+class bvh_node{
 public:
     __device__
     bvh_node(){};
@@ -18,17 +18,17 @@ public:
             : bvh_node(list->objects, 0, list->objLastIdx, time0, time1){}
 
     __device__
-    bvh_node(hittable **src_objects,
-            size_t start, size_t end, float time0, float time1);
+    bvh_node(CudaObj **src_objects,
+             size_t start, size_t end, float time0, float time1);
 
     __device__
-    bool hit(const ray& r, float t_min, float t_max, hit_record& rec) const override;
+    bool hit(const Ray& r, float t_min, float t_max, hit_record& rec) const;
 
     __device__
-    bool bounding_box(float time0, float time1, aabb& output_box) const override;
+    bool bounding_box(float time0, float time1, aabb& output_box) const;
 
 public:
-    hittable *left, *right;
+    CudaObj *left, *right;
     aabb box;
 };
 
@@ -38,7 +38,7 @@ inline bool bvh_node::bounding_box(float time0, float time1, aabb &output_box) c
 }
 
 __device__
-inline bool bvh_node::hit(const ray &r, float t_min, float t_max, hit_record &rec) const {
+inline bool bvh_node::hit(const Ray &r, float t_min, float t_max, hit_record &rec) const {
     if (!box.hit(r, t_min, t_max))
         return false;
 
@@ -49,7 +49,7 @@ inline bool bvh_node::hit(const ray &r, float t_min, float t_max, hit_record &re
 }
 
 __device__
-inline bvh_node::bvh_node(hittable **src_objects, size_t start, size_t end, float time0, float time1) {
+inline bvh_node::bvh_node(CudaObj **src_objects, size_t start, size_t end, float time0, float time1) {
 
 }
 
