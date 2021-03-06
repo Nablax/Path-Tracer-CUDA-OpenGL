@@ -14,16 +14,16 @@ struct hit_record;
 #define METAL 2
 #define DIELECTRIC 4
 
-class material {
+class Material {
 public:
     __host__ __device__
-    material(){}
+    Material(){}
     __host__ __device__
-    material(const color& a) : mAlbedo(a), mType(LAMBERTIAN) {}
+    Material(const color& a) : mAlbedo(a), mType(LAMBERTIAN) {}
     __host__ __device__
-    material(const color& a, float f) : mAlbedo(a), mFuzz(f < 1 ? f : 1), mType(METAL)  {}
+    Material(const color& a, float f) : mAlbedo(a), mFuzz(f < 1 ? f : 1), mType(METAL)  {}
     __host__ __device__
-    material(const float index_of_refraction) : mIr(index_of_refraction), mType(DIELECTRIC) {}
+    Material(const float index_of_refraction) : mIr(index_of_refraction), mType(DIELECTRIC) {}
     __device__
     bool scatter(
             const Ray& r_in, const hit_record& rec, color& attenuation, Ray& scattered, curandState *randState

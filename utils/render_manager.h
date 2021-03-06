@@ -5,9 +5,8 @@
 #ifndef CUDARAYTRACER_RENDER_MANAGER_H
 #define CUDARAYTRACER_RENDER_MANAGER_H
 
-#include "cuda_object.h"
 #include "material.h"
-#include "aabb.h"
+#include "bvh.h"
 
 class RenderManager{
 public:
@@ -17,45 +16,45 @@ public:
         initMat(matSz);
     }
     __device__ inline void clear() {
-        delete[] objects;
-        delete[] mats;
+        delete[] mObjects;
+        delete[] mMaterials;
     }
     __device__ inline void addObj(CudaObj *o){
-        if(objMaxSize <= 0) return;
-        objLastIdx %= objMaxSize;
-        objects[objLastIdx++] = *o;
+        if(mObjMaxSize <= 0) return;
+        mObjLastIdx %= mObjMaxSize;
+        mObjects[mObjLastIdx++] = *o;
         mWorldBoundingBox.unionBoxInPlace(o->mBoundingBox);
     }
-    __device__ inline void addMat(material *m){
-        if(matMaxSize <= 0) return;
-        matLastIdx %= matMaxSize;
-        mats[matLastIdx++] = *m;
+    __device__ inline void addMat(Material *m){
+        if(mMatMaxSize <= 0) return;
+        mMatLastIdx %= mMatMaxSize;
+        mMaterials[mMatLastIdx++] = *m;
     }
     __device__ inline bool hit(const Ray& r, float t_min, float t_max, hit_record& rec) const;
     __device__
     bool unionAllBox(float time0, float time1, aabb& output_box) const ;
     __device__ inline void initObj(size_t sz){
-        objects = new CudaObj[sz];
-        objLastIdx = 0;
-        objMaxSize = sz;
+        mObjects = new CudaObj[sz];
+        mObjLastIdx = 0;
+        mObjMaxSize = sz;
         mWorldBoundingBox.mMin = mWorldBoundingBox.mMax = vec3();
     }
     __device__ inline void initMat(size_t sz){
-        mats = new material[sz];
-        matLastIdx = 0;
-        matMaxSize = sz;
+        mMaterials = new Material[sz];
+        mMatLastIdx = 0;
+        mMatMaxSize = sz;
     }
     __device__ inline ~RenderManager(){
         clear();
     }
 public:
-    CudaObj *objects;
-    material *mats;
+    CudaObj *mObjects;
+    Material *mMaterials;
     aabb mWorldBoundingBox;
-    size_t objLastIdx = 0;
-    size_t matLastIdx = 0;
-    size_t matMaxSize = 0;
-    size_t objMaxSize = 0;
+    size_t mObjLastIdx = 0;
+    size_t mMatLastIdx = 0;
+    size_t mMatMaxSize = 0;
+    size_t mObjMaxSize = 0;
 };
 
 __device__ inline bool RenderManager::hit(const Ray &r, float t_min, float t_max, hit_record &rec) const {
@@ -63,8 +62,8 @@ __device__ inline bool RenderManager::hit(const Ray &r, float t_min, float t_max
     bool hit_anything = false;
     auto closest_so_far = t_max;
 
-    for (int i = 0; i < objLastIdx; i++) {
-        if (objects[i].hit(r, t_min, closest_so_far, temp_rec)) {
+    for (int i = 0; i < mObjLastIdx; i++) {
+        if (mObjects[i].hit(r, t_min, closest_so_far, temp_rec)) {
             hit_anything = true;
             closest_so_far = temp_rec.t;
             rec = temp_rec;
@@ -74,12 +73,12 @@ __device__ inline bool RenderManager::hit(const Ray &r, float t_min, float t_max
 }
 
 __device__ bool RenderManager::unionAllBox(float time0, float time1, aabb &output_box) const {
-    if(objLastIdx <= 0) return false;
+    if(mObjLastIdx <= 0) return false;
     aabb tmpBox;
-    if(!objects[0].bounding_box(time0, time1, tmpBox)) return false;
+    if(!mObjects[0].bounding_box(time0, time1, tmpBox)) return false;
     output_box = tmpBox;
-    for(int i = 1; i < objLastIdx; i++){
-        if(!objects[0].bounding_box(time0, time1, tmpBox)) return false;
+    for(int i = 1; i < mObjLastIdx; i++){
+        if(!mObjects[0].bounding_box(time0, time1, tmpBox)) return false;
         output_box = utils::unionBox(output_box, tmpBox);
     }
     return true;

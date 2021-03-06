@@ -5,7 +5,6 @@
 #ifndef CUDARAYTRACER_CUDA_OBJECT_H
 #define CUDARAYTRACER_CUDA_OBJECT_H
 #include "aabb.h"
-#include "material.h"
 
 #define TYPE_SPHERE 1
 #define TYPE_MESH 2

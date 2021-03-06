@@ -6,51 +6,46 @@
 #define CUDARAYTRACER_BVH_H
 
 #include "cuda_object.h"
-#include "render_manager.h"
+#include <vector>
+#include <algorithm>
+#include "aabb.h"
 
-class bvh_node{
-public:
-    __device__
-    bvh_node(){};
-
-    __device__
-    bvh_node(const RenderManager* list, float time0, float time1)
-            : bvh_node(list->objects, 0, list->objLastIdx, time0, time1){}
-
-    __device__
-    bvh_node(CudaObj *src_objects,
-             size_t start, size_t end, float time0, float time1);
-
-    __device__
-    bool hit(const Ray& r, float t_min, float t_max, hit_record& rec) const;
-
-    __device__
-    bool bounding_box(float time0, float time1, aabb& output_box) const;
-
-public:
-    CudaObj *left, *right;
-    aabb box;
+struct Morton{
+    unsigned int mortonCodes;
+    int objectID;
 };
 
 __device__
-inline bool bvh_node::bounding_box(float time0, float time1, aabb &output_box) const {
+unsigned int expandBits(unsigned int v)
+{
+    v = (v * 0x00010001u) & 0xFF0000FFu;
+    v = (v * 0x00000101u) & 0x0F00F00Fu;
+    v = (v * 0x00000011u) & 0xC30C30C3u;
+    v = (v * 0x00000005u) & 0x49249249u;
+    return v;
+}
+
+__device__
+unsigned int morton3D(float x, float y, float z)
+{
+    x = fminf(fmaxf(x * 1024.0f, 0.0f), 1023.0f);
+    y = fminf(fmaxf(y * 1024.0f, 0.0f), 1023.0f);
+    z = fminf(fmaxf(z * 1024.0f, 0.0f), 1023.0f);
+    unsigned int xx = expandBits((unsigned int)x);
+    unsigned int yy = expandBits((unsigned int)y);
+    unsigned int zz = expandBits((unsigned int)z);
+    return (xx << 2) + (yy << 1) + zz;
+}
+
+struct BVHNode{
+    int left = 0, right = 0;
+    int objID = -1;
+    aabb box;
+};
+
+__host__
+bool buildBVHOnHost(std::vector<CudaObj> &objList, int start, int end){
     return false;
-}
-
-__device__
-inline bool bvh_node::hit(const Ray &r, float t_min, float t_max, hit_record &rec) const {
-    if (!box.hit(r, t_min, t_max))
-        return false;
-
-    bool hit_left = left->hit(r, t_min, t_max, rec);
-    bool hit_right = right->hit(r, t_min, hit_left ? rec.t : t_max, rec);
-
-    return hit_left || hit_right;
-}
-
-__device__
-inline bvh_node::bvh_node(CudaObj *src_objects, size_t start, size_t end, float time0, float time1) {
-
 }
 
 

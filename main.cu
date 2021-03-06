@@ -24,7 +24,7 @@ __device__ color ray_color(const Ray& r, RenderManager *world, int depth, curand
     while(depth-- > 0){
         if (world->hit(curRay, 0.001f, globalvar::kInfinityGPU, rec)) {
             color nextAttenuation;
-            if (world->mats[rec.matID].scatter(curRay, rec, nextAttenuation, curRay, randState))
+            if (world->mMaterials[rec.matID].scatter(curRay, rec, nextAttenuation, curRay, randState))
                 attenuation *= nextAttenuation;
             else attenuation = vec3();
         }
@@ -41,13 +41,13 @@ __global__ void generateWorld(RenderManager *world){
     world->initObj(5);
     world->initMat(4);
 
-    auto material_ground = new material(color(0.8, 0.8, 0.0));
+    auto material_ground = new Material(color(0.8, 0.8, 0.0));
     world->addMat(material_ground);
-    auto material_center = new material(color(0.1, 0.2, 0.5));
+    auto material_center = new Material(color(0.1, 0.2, 0.5));
     world->addMat(material_center);
-    auto material_left = new material(1.5f);
+    auto material_left = new Material(1.5f);
     world->addMat(material_left);
-    auto material_right = new material(color(0.8, 0.6, 0.2), 1);
+    auto material_right = new Material(color(0.8, 0.6, 0.2), 1);
     world->addMat(material_right);
 
     world->addObj(new CudaObj(point3(0.0, -100.5, -1.0), 100.0, 0));
@@ -57,13 +57,76 @@ __global__ void generateWorld(RenderManager *world){
     world->addObj(new CudaObj(point3(1.0, 0.0, -1.0), 0.5, 3));
 }
 
+__global__ void copyObjMatsToDevice(RenderManager* world, CudaObj* myObj, int objSize, Material* myMats, int matSize){
+    world->mObjects = myObj;
+    world->mMaterials = myMats;
+    world->mMatMaxSize = world->mMatLastIdx = matSize;
+    world->mObjMaxSize = world->mObjLastIdx = objSize;
+}
+
+
+void generateRandomWorldOnHost(){
+    std::vector<CudaObj> myObj;
+    std::vector<Material> myMats;
+
+    myObj.emplace_back(point3(0, -1000, 0), 1000.0f, myMats.size());
+    myMats.emplace_back(color(0.5, 0.5, 0.5));
+
+    int sampleNum = 0;
+
+    for(int i = -sampleNum; i < sampleNum; i++){
+        for(int j = -sampleNum; j < sampleNum; j++){
+            float choose_mat = randomUniformOnHost();
+            point3 center(i + 0.9f * randomUniformOnHost(), 0.2, j + 0.9f * randomUniformOnHost());
+            if ((center - point3(4, 0.2, 0)).length() > 0.9) {
+                auto rand1 = vec3(randomUniformOnHost(), randomUniformOnHost(), randomUniformOnHost());
+                auto rand2 = vec3(randomUniformOnHost(), randomUniformOnHost(), randomUniformOnHost());
+                if(choose_mat < 0.8){
+                    auto albedo = rand1 * rand2;
+                    myObj.emplace_back(center, 0.2f, myMats.size());
+                    myMats.emplace_back(albedo);
+                }
+                else if(choose_mat < 0.95){
+                    auto albedo = rand1 / 2 + vec3(0.5f, 0.5f, 0.5f);
+                    float fuzz = rand2.x() / 2;
+                    myObj.emplace_back(center, 0.2f, myMats.size());
+                    myMats.emplace_back(albedo, fuzz);
+                }
+                else{
+                    myObj.emplace_back(center, 0.2f, myMats.size());
+                    myMats.emplace_back(1.5f);
+                }
+            }
+        }
+    }
+    myObj.emplace_back(point3(4, 1, 0), 1.0f, myMats.size());
+    myObj.emplace_back(point3(4, 1, 0), -0.9f, myMats.size());
+    myMats.emplace_back(1.5f);
+
+    myObj.emplace_back(point3(-4, 1, 0), 1.0f, myMats.size());
+    myMats.emplace_back(color(1, 0, 0.4));
+
+    myObj.emplace_back(point3(0, 1, 0), 1.0f, myMats.size());
+    myMats.emplace_back(color(0.7, 0.6, 0.5), 0.0f);
+
+    CudaObj *myObjCuda;
+    Material *myMatsCuda;
+    checkCudaErrors(cudaMalloc((void**)&myObjCuda, myObj.size() * sizeof(CudaObj)));
+    checkCudaErrors(cudaMalloc((void**)&myMatsCuda, myMats.size() * sizeof(Material)));
+
+    checkCudaErrors(cudaMemcpy(myObjCuda, myObj.data(), myObj.size() * sizeof(CudaObj), cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpy(myMatsCuda, myMats.data(), myMats.size() * sizeof(Material), cudaMemcpyHostToDevice));
+
+    copyObjMatsToDevice<<<1, 1>>>(world, myObjCuda, myObj.size(), myMatsCuda, myMats.size());
+}
+
 __global__ void generateRandomWorld(RenderManager *world, curandState* randState){
     int sampleNum = 0;
     int objSz = sampleNum * sampleNum * 4 + 4 + 1;
     world->initObj(objSz);
     world->initMat(objSz);
 
-    auto ground_material = new material(color(0.5, 0.5, 0.5));
+    auto ground_material = new Material(color(0.5, 0.5, 0.5));
     world->addObj(new CudaObj(point3(0, -1000, 0), 1000, 0));
     world->addMat(ground_material);
 
@@ -72,42 +135,42 @@ __global__ void generateRandomWorld(RenderManager *world, curandState* randState
             float choose_mat = curand_uniform(randState);
             point3 center(i + 0.9f * curand_uniform(randState), 0.2, j + 0.9f * curand_uniform(randState));
             if ((center - point3(4, 0.2, 0)).length() > 0.9) {
-                material *sphere_material;
+                Material *sphere_material;
                 auto rand1 = vec3(curand_uniform(randState), curand_uniform(randState), curand_uniform(randState));
                 auto rand2 = vec3(curand_uniform(randState), curand_uniform(randState), curand_uniform(randState));
                 if(choose_mat < 0.8){
                     auto albedo = rand1 * rand2;
-                    sphere_material = new material(albedo);
+                    sphere_material = new Material(albedo);
                     auto center2 = center + vec3(0, rand2.y() * 0.5f, 0);
-                    world->addObj(new CudaObj(center, 0.2, world->matLastIdx));
+                    world->addObj(new CudaObj(center, 0.2, world->mMatLastIdx));
                 }
                 else if(choose_mat < 0.95){
                     auto albedo = rand1 / 2 + vec3(0.5f, 0.5f, 0.5f);
                     float fuzz = rand2.x() / 2;
-                    sphere_material = new material(albedo, fuzz);
-                    world->addObj(new CudaObj(center, 0.2, world->matLastIdx));
+                    sphere_material = new Material(albedo, fuzz);
+                    world->addObj(new CudaObj(center, 0.2, world->mMatLastIdx));
                 }
                 else{
-                    sphere_material = new material(1.5f);
-                    world->addObj(new CudaObj(center, 0.2, world->matLastIdx));
+                    sphere_material = new Material(1.5f);
+                    world->addObj(new CudaObj(center, 0.2, world->mMatLastIdx));
                 }
                 world->addMat(sphere_material);
 
             }
         }
     }
-    auto material1 = new material(1.5f);
+    auto material1 = new Material(1.5f);
 
-    world->addObj(new CudaObj(point3(4, 1, 0), 1.0, world->matLastIdx));
-    world->addObj(new CudaObj(point3(4, 1, 0), -0.9, world->matLastIdx));
+    world->addObj(new CudaObj(point3(4, 1, 0), 1.0, world->mMatLastIdx));
+    world->addObj(new CudaObj(point3(4, 1, 0), -0.9, world->mMatLastIdx));
     world->addMat(material1);
 
-    auto material2 = new material(color(1, 0, 0.4));
-    world->addObj(new CudaObj(point3(-4, 1, 0), 1.0, world->matLastIdx));
+    auto material2 = new Material(color(1, 0, 0.4));
+    world->addObj(new CudaObj(point3(-4, 1, 0), 1.0, world->mMatLastIdx));
     world->addMat(material2);
 
-    auto material3 = new material(color(0.7, 0.6, 0.5), 0.0);
-    world->addObj(new CudaObj(point3(0, 1, 0), 1.0, world->matLastIdx));
+    auto material3 = new Material(color(0.7, 0.6, 0.5), 0.0);
+    world->addObj(new CudaObj(point3(0, 1, 0), 1.0, world->mMatLastIdx));
     world->addMat(material3);
 
     printf("%f", world->mWorldBoundingBox.getMin().x());
@@ -281,7 +344,9 @@ void initWorldStates(){
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
 
-    generateRandomWorld<<<1, 1>>>(world, devStates);
+    //generateRandomWorld<<<1, 1>>>(world, devStates);
+
+    generateRandomWorldOnHost();
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
 }

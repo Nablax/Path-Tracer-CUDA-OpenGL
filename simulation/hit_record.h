@@ -7,7 +7,7 @@
 
 #include "material.h"
 
-class material;
+class Material;
 
 struct hit_record {
     point3 p;

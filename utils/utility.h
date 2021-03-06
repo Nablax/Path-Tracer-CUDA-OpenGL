@@ -8,6 +8,7 @@
 #include <curand_kernel.h>
 #include "vec3.h"
 #include "global_variables.h"
+#include <random>
 
 namespace utils{
     using color = vectorgpu::vec3;
@@ -95,6 +96,12 @@ namespace utils{
         float r = sqrtf(curand_uniform(randState));
         float theta = curand_uniform(randState) * 2 * globalvar::kPiGPU;
         return {r * cosf(theta), r * sinf(theta), 0};
+    }
+    __host__
+    inline float randomUniformOnHost() {
+        static std::uniform_real_distribution<float> distribution(0.0, 1.0);
+        static std::mt19937 generator;
+        return distribution(generator);
     }
 }
 
