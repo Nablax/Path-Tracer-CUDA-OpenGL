@@ -27,9 +27,10 @@ namespace utils{
         return degrees * globalvar::kDegToRadGPU;
     }
 
+    template<typename T>
     __device__
-    inline void swapGPU(float &a, float &b){
-        auto tmp = a;
+    inline void swapGPU(T &a, T &b){
+        T tmp = a;
         a = b;
         b = tmp;
     }

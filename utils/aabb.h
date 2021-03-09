@@ -42,6 +42,10 @@ public:
         mMax.e[1] = fmaxf(mMax.y(), box.getMax().y());
         mMax.e[2] = fmaxf(mMax.z(), box.getMax().z());
     }
+    __host__ __device__
+    inline point3 getCenter(){
+        return (mMin + mMax) * 0.5f;
+    }
     point3 mMin;
     point3 mMax;
 };

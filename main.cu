@@ -118,6 +118,8 @@ void generateRandomWorldOnHost(){
     checkCudaErrors(cudaMemcpy(myMatsCuda, myMats.data(), myMats.size() * sizeof(Material), cudaMemcpyHostToDevice));
 
     copyObjMatsToDevice<<<1, 1>>>(world, myObjCuda, myObj.size(), myMatsCuda, myMats.size());
+    checkCudaErrors(cudaDeviceSynchronize());
+    buildBVH(myObj, myObjCuda);
 }
 
 __global__ void generateRandomWorld(RenderManager *world, curandState* randState){
@@ -214,14 +216,14 @@ __global__ void render(vec3 *frameBuffer, int maxWidth, int maxHeight, int spp, 
     frameBuffer[curPixel] = vec3(r, g, b);
 }
 
-union pxl_rgbx_24
+union ColorRGBA
 {
-    uint1 b32;
+    unsigned color;
     struct {
         unsigned  r  : 8;
         unsigned  g  : 8;
         unsigned  b  : 8;
-        unsigned  na : 8;
+        unsigned  a : 8;
     };
 };
 
@@ -243,7 +245,7 @@ __global__ void renderBySurface(int maxWidth, int maxHeight, int spp, int maxDep
 
     vec3 color = vec3();
 
-    union pxl_rgbx_24 rgbx;
+    union ColorRGBA rgba;
 
     for(int i = 0; i < spp; i++){
         float u = (col + curand_uniform(&randState[curPixel])) * maxWidthInv;
@@ -252,14 +254,14 @@ __global__ void renderBySurface(int maxWidth, int maxHeight, int spp, int maxDep
         //printf("%f %f %f\n", u, v, myCamera->fl);
         color += ray_color(r, world, maxDepth, &randState[curPixel]);
     }
-    rgbx.r = sqrtf(color.r() * sppInv) * 255;
-    rgbx.g = sqrtf(color.g() * sppInv) * 255;
-    rgbx.b = sqrtf(color.b() * sppInv) * 255;
-    rgbx.na = 255;
+    rgba.r = sqrtf(color.r() * sppInv) * 255;
+    rgba.g = sqrtf(color.g() * sppInv) * 255;
+    rgba.b = sqrtf(color.b() * sppInv) * 255;
+    rgba.a = 255;
 
-    surf2Dwrite(rgbx.b32,
+    surf2Dwrite(rgba.color,
                 surf,
-                col * sizeof(rgbx),
+                col * sizeof(rgba),
                 row,
                 cudaBoundaryModeZero);
 }
