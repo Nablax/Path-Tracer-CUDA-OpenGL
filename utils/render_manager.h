@@ -47,10 +47,20 @@ public:
     __device__ inline ~RenderManager(){
         clear();
     }
+    __device__ inline void printBvh(){
+        for(int i = 0; i < 2 * mObjMaxSize - 1; i++){
+            point3 tmpMin = bvh[i].box.mMin;
+            point3 tmpMax = bvh[i].box.mMax;
+            printf("Node: %d, ObjID: %d, parent, left, right: %d, %d, %d, minIdx: %f %f %f, maxIdx: %f %f %f\n",
+                   i, bvh[i].objID, bvh[i].parent, bvh[i].left, bvh[i].right, tmpMin.x(), tmpMin.y(), tmpMin.z(),
+                   tmpMax.x(), tmpMax.y(), tmpMax.z());
+        }
+    }
 public:
     CudaObj *mObjects;
     Material *mMaterials;
     aabb mWorldBoundingBox;
+    BVHNode *bvh;
     size_t mObjLastIdx = 0;
     size_t mMatLastIdx = 0;
     size_t mMatMaxSize = 0;

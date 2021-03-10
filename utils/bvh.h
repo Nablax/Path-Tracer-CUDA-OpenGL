@@ -10,6 +10,8 @@
 #include <algorithm>
 #include "aabb.h"
 
+#define MORTON32
+
 struct BVHNode{
     int left = -1, right = -1;
     int parent = -1;
@@ -30,6 +32,7 @@ extern BVHNode* bvhArrayDevice;
 __host__ __device__
 unsigned int expandBits(unsigned int v)
 {
+    printf("%u\n", v);
     v = (v * 0x00010001u) & 0xFF0000FFu;
     v = (v * 0x00000101u) & 0x0F00F00Fu;
     v = (v * 0x00000011u) & 0xC30C30C3u;
@@ -38,11 +41,16 @@ unsigned int expandBits(unsigned int v)
 }
 
 __host__ __device__
-unsigned int mortonCode3D(vec3 boxCenter)
+unsigned int mortonCode3D(const vec3 &boxCenter, const aabb &maxBox)
 {
-    float x = boxCenter.x();
-    float y = boxCenter.y();
-    float z = boxCenter.z();
+    point3 maxRange = maxBox.mMax - maxBox.mMin;
+    float x = 0, y = 0, z = 0;
+    if(maxRange.x() > 1e-7) x = (boxCenter.x() - maxBox.mMin.x()) / maxRange.x();
+    if(maxRange.y() > 1e-7) y = (boxCenter.y() - maxBox.mMin.y()) / maxRange.y();
+    if(maxRange.z() > 1e-7) z = (boxCenter.z() - maxBox.mMin.z()) / maxRange.z();
+
+    printf("x: %f, y: %f, z: %f\n", x, y, z);
+
     x = fminf(fmaxf(x * 1024.0f, 0.0f), 1023.0f);
     y = fminf(fmaxf(y * 1024.0f, 0.0f), 1023.0f);
     z = fminf(fmaxf(z * 1024.0f, 0.0f), 1023.0f);
@@ -52,48 +60,38 @@ unsigned int mortonCode3D(vec3 boxCenter)
     return (xx << 2) + (yy << 1) + zz;
 }
 
+__device__ int clzMorton(Morton *sortedMortonUnion, int idx1, int idx2, const int &numObjects){
+    if(idx1 < 0 || idx1 >= numObjects || idx2 < 0 || idx2 >= numObjects) return -1;
+#ifdef MORTON32
+    return __clz(sortedMortonUnion[idx1].mortonCode ^ sortedMortonUnion[idx2].mortonCode);
+#else
+    return __clzll(sortedMortonUnion[idx1].mortonCode64 ^ sortedMortonUnion[idx2].mortonCode64);
+#endif
+}
+
 __device__
 inline int2 determineRange(Morton* sortedMortonUnion, int numObjects, int idx){
-    if(idx == 0) return make_int2(0, numObjects - 1);
-    unsigned int currentMortonCode = sortedMortonUnion[idx].mortonCode;
-    int leftDelta = __clz(currentMortonCode ^ sortedMortonUnion[idx - 1].mortonCode);
-    int rightDelta = __clz(currentMortonCode ^ sortedMortonUnion[idx + 1].mortonCode);
-    int gradientDirection = (rightDelta > leftDelta) ? 1: -1;
+    int leftDelta = clzMorton(sortedMortonUnion, idx, idx - 1, numObjects);
+    int rightDelta = clzMorton(sortedMortonUnion, idx, idx + 1, numObjects);
+    int gradientDirection = utils::sign(rightDelta - leftDelta);
     int minDelta = min(leftDelta, rightDelta);
 
-    int maxStride = 2, tmpDelta = -1;
-    int tmpIdx = idx + gradientDirection * maxStride;
-
-    if(tmpIdx >= 0 && tmpIdx < numObjects){
-        tmpDelta = __clz(currentMortonCode ^ sortedMortonUnion[tmpIdx].mortonCode);
+    int maxStride = 2;
+    while(clzMorton(sortedMortonUnion,
+                    idx, idx + maxStride * gradientDirection,
+                    numObjects) > minDelta){
+        maxStride *= 2;
     }
-
-    while(tmpDelta > minDelta){
-        maxStride <<= 1;
-        tmpIdx = idx + gradientDirection * maxStride;
-        tmpDelta = -1;
-
-        if(tmpIdx >= 0 && tmpIdx < numObjects){
-            tmpDelta = __clz(currentMortonCode ^ sortedMortonUnion[tmpIdx].mortonCode);
-        }
-    }
-
     int l = 0;
-    int curStride = maxStride >> 1;
-    while(curStride > 0){
-        tmpIdx = idx + (l + curStride) * gradientDirection;
-        tmpDelta = -1;
-        if(tmpIdx >= 0 && tmpIdx < numObjects){
-            tmpDelta = __clz(currentMortonCode ^ sortedMortonUnion[tmpIdx].mortonCode);
-        }
-        if(tmpDelta > minDelta){
+    for(int curStride = (maxStride >> 1); curStride >= 1; (curStride >>= 1)){
+        if(clzMorton(sortedMortonUnion, idx, idx + (l + curStride) * gradientDirection, numObjects) > minDelta){
             l += curStride;
         }
-        curStride >>= 1;
     }
-    int jdx = idx + l * curStride;
+    int jdx = idx + l * gradientDirection;
     if(gradientDirection < 0) utils::swapGPU(jdx, idx);
     return make_int2(idx, jdx);
+
 }
 
 __device__
@@ -125,7 +123,7 @@ void generateLBVH(Morton *sortedMortonUnion, BVHNode* nodes, CudaObj* obj, int n
     int curObjID = sortedMortonUnion[idx].objectID;
     BVHNode curLeafNode;
     curLeafNode.objID = curObjID;
-    curLeafNode.box = obj[curObjID].mBoundingBox;
+    obj[curObjID].bounding_box(0, 0, curLeafNode.box);
     nodes[leafNodeStartIdx + idx] = curLeafNode;
     if(idx < numObjects - 1){
         BVHNode curInternalNode;
@@ -149,6 +147,8 @@ void generateLBVH(Morton *sortedMortonUnion, BVHNode* nodes, CudaObj* obj, int n
         if(split + 1 == last) childB = leafNodeStartIdx + split + 1;
         else childB = split + 1;
 
+        printf("node: %d, range: (%d, %d), split: %d, childA: %d, childB: %d\n", idx, first, last, split, childA, childB);
+
         nodes[idx].left = childA;
         nodes[idx].right = childB;
         nodes[childA].parent = idx;
@@ -168,20 +168,24 @@ void generateLBVH(Morton *sortedMortonUnion, BVHNode* nodes, CudaObj* obj, int n
 }
 
 __host__
-auto computeMortonOnHost(std::vector<CudaObj> &objList)->std::vector<Morton>{
+auto computeMortonOnHost(std::vector<CudaObj> &objList, aabb &maxBox)->std::vector<Morton>{
     std::vector<Morton> myMorton(objList.size());
     for(int i = 0; i < objList.size(); i++){
         myMorton[i].objectID = i;
-        myMorton[i].mortonCode = mortonCode3D(objList[i].mBoundingBox.getCenter());
+        myMorton[i].mortonCode = mortonCode3D(objList[i].mBoundingBox.getCenter(), maxBox);
     }
     std::stable_sort(myMorton.begin(), myMorton.end(), [](const Morton &a, const Morton &b){
        return a.mortonCode < b.mortonCode;
     });
+
+    for(int i = 0; i < objList.size(); i++){
+        printf("%x %d\n", myMorton[i].mortonCode, myMorton[i].objectID);
+    }
     return myMorton;
 }
 __host__
-bool buildBVH(std::vector<CudaObj> &objList, CudaObj *objListOnDevice){
-    auto myMorton = computeMortonOnHost(objList);
+bool buildBVH(std::vector<CudaObj> &objList, CudaObj *objListOnDevice, aabb& maxBox){
+    auto myMorton = computeMortonOnHost(objList, maxBox);
     checkCudaErrors(cudaFree(bvhArrayDevice));
     int numObj = objList.size();
     checkCudaErrors(cudaMalloc((void **)&bvhArrayDevice, (2 * numObj - 1) * sizeof(BVHNode)));

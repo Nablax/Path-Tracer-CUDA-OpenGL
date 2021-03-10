@@ -16,8 +16,10 @@ public:
     __host__ __device__
     CudaObj(point3 cen, float r, int matID)
     : mCenter(cen), mRadius(r), mMaterialID(matID), mType(TYPE_SPHERE){
-        mBoundingBox = aabb(mCenter - vec3(mRadius, mRadius, mRadius),
-                            mCenter + vec3(mRadius, mRadius, mRadius));
+        if(mType == TYPE_SPHERE){
+            mBoundingBox = aabb(mCenter - vec3(mRadius, mRadius, mRadius),
+                                mCenter + vec3(mRadius, mRadius, mRadius));
+        }
     };
     __device__ bool hit(const Ray& r, float t_min, float t_max, hit_record& rec) {
         if(mType == TYPE_SPHERE){

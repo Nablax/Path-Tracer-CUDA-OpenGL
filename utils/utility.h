@@ -104,6 +104,10 @@ namespace utils{
         static std::mt19937 generator;
         return distribution(generator);
     }
+
+    __device__ int sign(int x){
+        return (x > 0) - (x < 0);
+    }
 }
 
 #endif //RAY_TRACING_UTILITY_H
