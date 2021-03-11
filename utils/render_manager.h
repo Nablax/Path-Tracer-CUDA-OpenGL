@@ -60,7 +60,7 @@ public:
     CudaObj *mObjects;
     Material *mMaterials;
     aabb mWorldBoundingBox;
-    BVHNode *bvh;
+    lbvh::BVHNode *bvh;
     size_t mObjLastIdx = 0;
     size_t mMatLastIdx = 0;
     size_t mMatMaxSize = 0;

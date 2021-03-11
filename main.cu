@@ -6,14 +6,14 @@
 #include "material.h"
 #include "bvh.h"
 #include "cuda2gl.h"
-#define TEST
+#include "macros.h"
 
 surface<void,cudaSurfaceType2D> surf;
 camera *devCamera, *hostCamera;
 RenderManager *world;
 size_t frameBufferSize = globalvar::kFrameHeight * globalvar::kFrameWidth * sizeof(vec3);
 curandState *devStates;
-BVHNode *bvhArrayDevice;
+lbvh::BVHNode *lbvh::lbvhArrayDevice;
 dim3 blocks(globalvar::kBlockX, globalvar::kBlockY);
 dim3 threads(globalvar::kThreadX, globalvar::kThreadY);
 double deltaTime = 0;
@@ -65,9 +65,11 @@ __global__ void copyObjMatsToDevice(RenderManager* world, CudaObj* myObj, int ob
     world->mMatMaxSize = world->mMatLastIdx = matSize;
     world->mObjMaxSize = world->mObjLastIdx = objSize;
 }
-__global__ void copyBVHToDevice(RenderManager* world, BVHNode* bvh){
+__global__ void copyBVHToDevice(RenderManager* world, lbvh::BVHNode* bvh){
     world->bvh = bvh;
+#ifdef TEST
     world->printBvh();
+#endif
 }
 
 
@@ -84,15 +86,11 @@ void generateTestWorldOnHost(){
 //    myMats.emplace_back(color(1, 0, 0));
 //    maxBox.unionBoxInPlace(myObj.back().mBoundingBox);
 
-//    myObj.emplace_back(point3(-1005, 0, 0), 1000.0f, myMats.size());
-//    myMats.emplace_back(color(0.5, 0.5, 0.5));
-//    maxBox.unionBoxInPlace(myObj.back().mBoundingBox);
 
-
-
-//    myObj.emplace_back(point3(2, 1, 0), 1.0f, myMats.size());
-//    myObj.emplace_back(point3(2, 1, 0), -0.9f, myMats.size());
-//    myMats.emplace_back(1.5f);
+    myObj.emplace_back(point3(2, 1, 0), 1.0f, myMats.size());
+    maxBox.unionBoxInPlace(myObj.back().mBoundingBox);
+    myObj.emplace_back(point3(2, 1, 0), -0.9f, myMats.size());
+    myMats.emplace_back(1.5f);
 
 
     myObj.emplace_back(point3(-2, 1, 0), 1.0f, myMats.size());
@@ -103,8 +101,12 @@ void generateTestWorldOnHost(){
     myMats.emplace_back(color(0.7, 0.6, 0.5), 0.0f);
     maxBox.unionBoxInPlace(myObj.back().mBoundingBox);
 
-    myObj.emplace_back(point3(2, 1, 0), 1.0f, myMats.size());
+    myObj.emplace_back(point3(2, -1, 0), 1.0f, myMats.size());
     myMats.emplace_back(color(1, 0, 0));
+    maxBox.unionBoxInPlace(myObj.back().mBoundingBox);
+
+    myObj.emplace_back(point3(1005, 0, 0), 1000.0f, myMats.size());
+    myMats.emplace_back(color(0, 0, 1));
     maxBox.unionBoxInPlace(myObj.back().mBoundingBox);
 
     CudaObj *myObjCuda;
@@ -117,18 +119,20 @@ void generateTestWorldOnHost(){
 
     copyObjMatsToDevice<<<1, 1>>>(world, myObjCuda, myObj.size(), myMatsCuda, myMats.size());
     checkCudaErrors(cudaDeviceSynchronize());
-    buildBVH(myObj, myObjCuda, maxBox);
-    copyBVHToDevice<<<1, 1>>>(world, bvhArrayDevice);
+    lbvh::buildBVH(myObj, myObjCuda, maxBox);
+    copyBVHToDevice<<<1, 1>>>(world, lbvh::lbvhArrayDevice);
 }
 
 void generateRandomWorldOnHost(){
     std::vector<CudaObj> myObj;
     std::vector<Material> myMats;
+    aabb maxBox;
 
     myObj.emplace_back(point3(0, -1000, 0), 1000.0f, myMats.size());
     myMats.emplace_back(color(0.5, 0.5, 0.5));
+    maxBox.unionBoxInPlace(myObj.back().mBoundingBox);
 
-    int sampleNum = 0;
+    int sampleNum = 2;
 
     for(int i = -sampleNum; i < sampleNum; i++){
         for(int j = -sampleNum; j < sampleNum; j++){
@@ -152,17 +156,21 @@ void generateRandomWorldOnHost(){
                     myObj.emplace_back(center, 0.2f, myMats.size());
                     myMats.emplace_back(1.5f);
                 }
+                maxBox.unionBoxInPlace(myObj.back().mBoundingBox);
             }
         }
     }
     myObj.emplace_back(point3(4, 1, 0), 1.0f, myMats.size());
+    maxBox.unionBoxInPlace(myObj.back().mBoundingBox);
     myObj.emplace_back(point3(4, 1, 0), -0.9f, myMats.size());
     myMats.emplace_back(1.5f);
 
     myObj.emplace_back(point3(-4, 1, 0), 1.0f, myMats.size());
+    maxBox.unionBoxInPlace(myObj.back().mBoundingBox);
     myMats.emplace_back(color(1, 0, 0.4));
 
     myObj.emplace_back(point3(0, 1, 0), 1.0f, myMats.size());
+    maxBox.unionBoxInPlace(myObj.back().mBoundingBox);
     myMats.emplace_back(color(0.7, 0.6, 0.5), 0.0f);
 
     CudaObj *myObjCuda;
@@ -175,7 +183,8 @@ void generateRandomWorldOnHost(){
 
     copyObjMatsToDevice<<<1, 1>>>(world, myObjCuda, myObj.size(), myMatsCuda, myMats.size());
     checkCudaErrors(cudaDeviceSynchronize());
-    //buildBVH(myObj, myObjCuda);
+    lbvh::buildBVH(myObj, myObjCuda, maxBox);
+    copyBVHToDevice<<<1, 1>>>(world, lbvh::lbvhArrayDevice);
 }
 
 __global__ void generateRandomWorld(RenderManager *world, curandState* randState){
@@ -404,7 +413,7 @@ void initWorldStates(){
 
     //generateRandomWorld<<<1, 1>>>(world, devStates);
     //generateRandomWorldOnHost();
-#ifdef TEST
+#ifdef TEST1
     generateTestWorldOnHost();
     hostCamera = new camera(
             vec3 (0,1,15),
@@ -426,7 +435,7 @@ void clearWorldStates(){
     checkCudaErrors(cudaFree(world));
     checkCudaErrors(cudaFree(devStates));
     checkCudaErrors(cudaFree(devCamera));
-    checkCudaErrors(cudaFree(bvhArrayDevice));
+    checkCudaErrors(cudaFree(lbvh::lbvhArrayDevice));
     cudaDeviceReset();
 }
 

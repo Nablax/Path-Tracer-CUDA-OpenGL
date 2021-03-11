@@ -17,8 +17,9 @@ public:
     CudaObj(point3 cen, float r, int matID)
     : mCenter(cen), mRadius(r), mMaterialID(matID), mType(TYPE_SPHERE){
         if(mType == TYPE_SPHERE){
-            mBoundingBox = aabb(mCenter - vec3(mRadius, mRadius, mRadius),
-                                mCenter + vec3(mRadius, mRadius, mRadius));
+            r = fabsf(r);
+            mBoundingBox = aabb(mCenter - vec3(r, r, r),
+                                mCenter + vec3(r, r, r));
         }
     };
     __device__ bool hit(const Ray& r, float t_min, float t_max, hit_record& rec) {
@@ -50,8 +51,9 @@ public:
     }
     __device__ bool bounding_box(float time0, float time1, aabb& output_box) {
         if(mType == TYPE_SPHERE){
-            output_box = aabb(mCenter - vec3(mRadius, mRadius, mRadius),
-                              mCenter + vec3(mRadius, mRadius, mRadius));
+            float r = fabsf(mRadius);
+            output_box = aabb(mCenter - vec3(r, r, r),
+                              mCenter + vec3(r, r, r));
         }
         return false;
     }
