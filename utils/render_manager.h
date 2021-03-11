@@ -31,6 +31,7 @@ public:
         mMaterials[mMatLastIdx++] = *m;
     }
     __device__ inline bool hit(const Ray& r, float t_min, float t_max, hit_record& rec) const;
+    __device__ inline bool hitBvh(const Ray& r, float t_min, float t_max, hit_record& rec) const;
     __device__
     bool unionAllBox(float time0, float time1, aabb& output_box) const ;
     __device__ inline void initObj(size_t sz){
@@ -80,6 +81,57 @@ __device__ inline bool RenderManager::hit(const Ray &r, float t_min, float t_max
         }
     }
     return hit_anything;
+}
+
+__device__ bool RenderManager::hitBvh(const Ray &r, float t_min, float t_max, hit_record &rec) const {
+    float closestSoFar = t_max;
+    bool hitAnything = false;
+    lbvh::BVHNode curNode = bvh[0];
+
+    hit_record tmpRec;
+    if(curNode.isLeafNode()){
+        if (mObjects[curNode.objID].hit(r, t_min, closestSoFar, tmpRec)) {
+            hitAnything = true;
+            rec = tmpRec;
+        }
+        return hitAnything;
+    }
+
+    const int stackNum = 64;
+    int queryStack[stackNum];
+    queryStack[0] = 0;
+    int stackTop = 1;
+
+    while(stackTop > 0){
+        curNode = bvh[queryStack[--stackTop]];
+        lbvh::BVHNode nextNode = bvh[curNode.left];
+        if(nextNode.box.hit(r, t_min, closestSoFar)){
+            if(nextNode.isLeafNode()){
+                if (mObjects[nextNode.objID].hit(r, t_min, closestSoFar, tmpRec)) {
+                    hitAnything = true;
+                    closestSoFar = tmpRec.t;
+                    rec = tmpRec;
+                }
+            }
+            else{
+                queryStack[stackTop++] = curNode.left;
+            }
+        }
+        nextNode = bvh[curNode.right];
+        if(nextNode.box.hit(r, t_min, closestSoFar)){
+            if(nextNode.isLeafNode()){
+                if (mObjects[nextNode.objID].hit(r, t_min, closestSoFar, tmpRec)) {
+                    hitAnything = true;
+                    closestSoFar = tmpRec.t;
+                    rec = tmpRec;
+                }
+            }
+            else{
+                queryStack[stackTop++] = curNode.right;
+            }
+        }
+    }
+    return hitAnything;
 }
 
 __device__ bool RenderManager::unionAllBox(float time0, float time1, aabb &output_box) const {

@@ -18,6 +18,10 @@ namespace lbvh{
         int parent = -1;
         int objID = -1;
         aabb box;
+        __device__
+        bool isLeafNode(){
+            return objID != -1;
+        }
     };
 
     extern BVHNode* lbvhArrayDevice;
@@ -51,7 +55,7 @@ namespace lbvh{
     inline int findSplit(morton::Morton* sortedMortonUnion, int first, int last){
 #ifdef MORTON32
         unsigned int firstCode = sortedMortonUnion[first].mortonCode64;
-    unsigned int lastCode = sortedMortonUnion[last].mortonCode64;
+        unsigned int lastCode = sortedMortonUnion[last].mortonCode64;
 #else
         unsigned long long firstCode = sortedMortonUnion[first].mortonCode64;
         unsigned long long lastCode = sortedMortonUnion[last].mortonCode64;

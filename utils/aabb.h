@@ -23,7 +23,7 @@ public:
         for (int i = 0; i < 3; i++) {
             float dirInv = 1.0f / rayDir[i];
             float t0 = (mMin[i] - rayOrig[i]) * dirInv;
-            float t1 = (mMin[i] - rayOrig[i]) * dirInv;
+            float t1 = (mMax[i] - rayOrig[i]) * dirInv;
             if(dirInv < 0.0f) utils::swapGPU(t0, t1);
             t_min = t0 > t_min ? t0 : t_min;
             t_max = t1 < t_max ? t1 : t_max;

@@ -21,7 +21,7 @@ namespace vectorgpu{
         __host__ __device__ inline float b() const { return e[2];};
         //__host__ __device__ inline float a() const { return e[3];};
         __host__ __device__ inline float operator[](int i) const {
-            if(i > 3) return e[0];
+            if(i > 3 || i < 0) return e[0];
             return e[i];
         };
         __host__ __device__ inline float& operator[](int i) {
