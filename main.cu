@@ -13,7 +13,7 @@ camera *devCamera, *hostCamera;
 RenderManager *world;
 size_t frameBufferSize = globalvar::kFrameHeight * globalvar::kFrameWidth * sizeof(vec3);
 curandState *devStates;
-lbvh::BVHNode *lbvh::lbvhArrayDevice;
+BVHNode *lbvhArrayDevice;
 dim3 blocks(globalvar::kBlockX, globalvar::kBlockY);
 dim3 threads(globalvar::kThreadX, globalvar::kThreadY);
 double deltaTime = 0;
@@ -24,7 +24,7 @@ __device__ color ray_color(const Ray& r, RenderManager *world, int depth, curand
     //printf("in ray color\n");
     color attenuation(1, 1, 1);
     while(depth-- > 0){
-        if (world->hit(curRay, 0.001f, globalvar::kInfinityGPU, rec)) {
+        if (world->hitBvh(curRay, 0.001f, globalvar::kInfinityGPU, rec)) {
             color nextAttenuation;
             if (world->mMaterials[rec.matID].scatter(curRay, rec, nextAttenuation, curRay, randState))
                 attenuation *= nextAttenuation;
@@ -39,33 +39,13 @@ __device__ color ray_color(const Ray& r, RenderManager *world, int depth, curand
     return {};
 }
 
-__global__ void generateWorld(RenderManager *world){
-    world->initObj(5);
-    world->initMat(4);
-
-    auto material_ground = new Material(color(0.8, 0.8, 0.0));
-    world->addMat(material_ground);
-    auto material_center = new Material(color(0.1, 0.2, 0.5));
-    world->addMat(material_center);
-    auto material_left = new Material(1.5f);
-    world->addMat(material_left);
-    auto material_right = new Material(color(0.8, 0.6, 0.2), 1);
-    world->addMat(material_right);
-
-    world->addObj(new CudaObj(point3(0.0, -100.5, -1.0), 100.0, 0));
-    world->addObj(new CudaObj(point3(0.0, 0.0, -1.0), 0.5, 1));
-    world->addObj(new CudaObj(point3(-1.0, 0.0, -1.0), 0.5, 2));
-    world->addObj(new CudaObj(point3(-1.0, 0.0, -1.0), -0.4, 2));
-    world->addObj(new CudaObj(point3(1.0, 0.0, -1.0), 0.5, 3));
-}
-
 __global__ void copyObjMatsToDevice(RenderManager* world, CudaObj* myObj, int objSize, Material* myMats, int matSize){
     world->mObjects = myObj;
     world->mMaterials = myMats;
     world->mMatMaxSize = world->mMatLastIdx = matSize;
     world->mObjMaxSize = world->mObjLastIdx = objSize;
 }
-__global__ void copyBVHToDevice(RenderManager* world, lbvh::BVHNode* bvh){
+__global__ void copyBVHToDevice(RenderManager* world, BVHNode* bvh){
     world->bvh = bvh;
 #ifdef TEST
     world->printBvh();
@@ -119,8 +99,8 @@ void generateTestWorldOnHost(){
 
     copyObjMatsToDevice<<<1, 1>>>(world, myObjCuda, myObj.size(), myMatsCuda, myMats.size());
     checkCudaErrors(cudaDeviceSynchronize());
-    lbvh::buildBVH(myObj, myObjCuda, maxBox);
-    copyBVHToDevice<<<1, 1>>>(world, lbvh::lbvhArrayDevice);
+    lbvh::buildBVH(myObj, myObjCuda, maxBox, lbvhArrayDevice);
+    copyBVHToDevice<<<1, 1>>>(world, lbvhArrayDevice);
 }
 
 void generateRandomWorldOnHost(){
@@ -183,64 +163,8 @@ void generateRandomWorldOnHost(){
 
     copyObjMatsToDevice<<<1, 1>>>(world, myObjCuda, myObj.size(), myMatsCuda, myMats.size());
     checkCudaErrors(cudaDeviceSynchronize());
-    lbvh::buildBVH(myObj, myObjCuda, maxBox);
-    copyBVHToDevice<<<1, 1>>>(world, lbvh::lbvhArrayDevice);
-}
-
-__global__ void generateRandomWorld(RenderManager *world, curandState* randState){
-    int sampleNum = 0;
-    int objSz = sampleNum * sampleNum * 4 + 4 + 1;
-    world->initObj(objSz);
-    world->initMat(objSz);
-
-    auto ground_material = new Material(color(0.5, 0.5, 0.5));
-    world->addObj(new CudaObj(point3(0, -1000, 0), 1000, 0));
-    world->addMat(ground_material);
-
-    for(int i = -sampleNum; i < sampleNum; i++){
-        for(int j = -sampleNum; j < sampleNum; j++){
-            float choose_mat = curand_uniform(randState);
-            point3 center(i + 0.9f * curand_uniform(randState), 0.2, j + 0.9f * curand_uniform(randState));
-            if ((center - point3(4, 0.2, 0)).length() > 0.9) {
-                Material *sphere_material;
-                auto rand1 = vec3(curand_uniform(randState), curand_uniform(randState), curand_uniform(randState));
-                auto rand2 = vec3(curand_uniform(randState), curand_uniform(randState), curand_uniform(randState));
-                if(choose_mat < 0.8){
-                    auto albedo = rand1 * rand2;
-                    sphere_material = new Material(albedo);
-                    auto center2 = center + vec3(0, rand2.y() * 0.5f, 0);
-                    world->addObj(new CudaObj(center, 0.2, world->mMatLastIdx));
-                }
-                else if(choose_mat < 0.95){
-                    auto albedo = rand1 / 2 + vec3(0.5f, 0.5f, 0.5f);
-                    float fuzz = rand2.x() / 2;
-                    sphere_material = new Material(albedo, fuzz);
-                    world->addObj(new CudaObj(center, 0.2, world->mMatLastIdx));
-                }
-                else{
-                    sphere_material = new Material(1.5f);
-                    world->addObj(new CudaObj(center, 0.2, world->mMatLastIdx));
-                }
-                world->addMat(sphere_material);
-
-            }
-        }
-    }
-    auto material1 = new Material(1.5f);
-
-    world->addObj(new CudaObj(point3(4, 1, 0), 1.0, world->mMatLastIdx));
-    world->addObj(new CudaObj(point3(4, 1, 0), -0.9, world->mMatLastIdx));
-    world->addMat(material1);
-
-    auto material2 = new Material(color(1, 0, 0.4));
-    world->addObj(new CudaObj(point3(-4, 1, 0), 1.0, world->mMatLastIdx));
-    world->addMat(material2);
-
-    auto material3 = new Material(color(0.7, 0.6, 0.5), 0.0);
-    world->addObj(new CudaObj(point3(0, 1, 0), 1.0, world->mMatLastIdx));
-    world->addMat(material3);
-
-    printf("%f", world->mWorldBoundingBox.getMin().x());
+    lbvh::buildBVH(myObj, myObjCuda, maxBox, lbvhArrayDevice);
+    copyBVHToDevice<<<1, 1>>>(world, lbvhArrayDevice);
 }
 
 __global__ void clearWorld(RenderManager *world){
@@ -439,7 +363,7 @@ void clearWorldStates(){
     checkCudaErrors(cudaFree(world));
     checkCudaErrors(cudaFree(devStates));
     checkCudaErrors(cudaFree(devCamera));
-    checkCudaErrors(cudaFree(lbvh::lbvhArrayDevice));
+    checkCudaErrors(cudaFree(lbvhArrayDevice));
     cudaDeviceReset();
 }
 
@@ -513,6 +437,6 @@ void renderToGL(){
 
 int main()
 {
-    renderToGL();
+    renderToPng();
 }
 

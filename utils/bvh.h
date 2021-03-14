@@ -11,21 +11,9 @@
 #include "morton_code.h"
 #include "aabb.h"
 #include "macros.h"
+#include "bvh_node.h"
 
 namespace lbvh{
-    struct BVHNode{
-        int left = -1, right = -1;
-        int parent = -1;
-        int objID = -1;
-        aabb box;
-        __device__
-        bool isLeafNode(){
-            return objID != -1;
-        }
-    };
-
-    extern BVHNode* lbvhArrayDevice;
-
     __device__
     inline int2 determineRange(morton::Morton* sortedMortonUnion, int numObjects, int idx){
         int leftDelta = clzMorton(sortedMortonUnion, idx, idx - 1, numObjects);
@@ -135,7 +123,7 @@ namespace lbvh{
     }
 
     __host__
-    bool buildBVH(std::vector<CudaObj> &objList, CudaObj *objListOnDevice, aabb& maxBox){
+    bool buildBVH(std::vector<CudaObj> &objList, CudaObj *objListOnDevice, aabb& maxBox, BVHNode* &lbvhArrayDevice){
         auto myMorton = morton::computeMortonOnHost(objList, maxBox);
         checkCudaErrors(cudaFree(lbvhArrayDevice));
         int numObj = objList.size();

@@ -61,7 +61,7 @@ public:
     CudaObj *mObjects;
     Material *mMaterials;
     aabb mWorldBoundingBox;
-    lbvh::BVHNode *bvh;
+    BVHNode *bvh;
     size_t mObjLastIdx = 0;
     size_t mMatLastIdx = 0;
     size_t mMatMaxSize = 0;
@@ -86,7 +86,7 @@ __device__ inline bool RenderManager::hit(const Ray &r, float t_min, float t_max
 __device__ bool RenderManager::hitBvh(const Ray &r, float t_min, float t_max, hit_record &rec) const {
     float closestSoFar = t_max;
     bool hitAnything = false;
-    lbvh::BVHNode curNode = bvh[0];
+    BVHNode curNode = bvh[0];
 
     hit_record tmpRec;
     if(curNode.isLeafNode()){
@@ -104,7 +104,7 @@ __device__ bool RenderManager::hitBvh(const Ray &r, float t_min, float t_max, hi
 
     while(stackTop > 0){
         curNode = bvh[queryStack[--stackTop]];
-        lbvh::BVHNode nextNode = bvh[curNode.left];
+        BVHNode nextNode = bvh[curNode.left];
         if(nextNode.box.hit(r, t_min, closestSoFar)){
             if(nextNode.isLeafNode()){
                 if (mObjects[nextNode.objID].hit(r, t_min, closestSoFar, tmpRec)) {

@@ -5,6 +5,8 @@
 #ifndef CUDARAYTRACER_CUDA_OBJECT_H
 #define CUDARAYTRACER_CUDA_OBJECT_H
 #include "aabb.h"
+#include "OBJ_Loader.hpp"
+#include "triangle.h"
 
 #define TYPE_SPHERE 1
 #define TYPE_MESH 2
@@ -22,6 +24,12 @@ public:
                                 mCenter + vec3(r, r, r));
         }
     };
+    __host__
+    CudaObj(const std::string& fileName, int matID): mMaterialID(matID), mType(TYPE_MESH){
+        objl::Loader loader;
+        loader.LoadFile(fileName);
+
+    }
     __device__ bool hit(const Ray& r, float t_min, float t_max, hit_record& rec) {
         if(mType == TYPE_SPHERE){
             vec3 oc = r.origin() - mCenter;
@@ -68,6 +76,8 @@ public:
         }
         return false;
     }
+    triangle *mTriangles;
+    int mTriCount = 0;
     int mMaterialID = -1;
     aabb mBoundingBox;
     int mType = TYPE_SPHERE;

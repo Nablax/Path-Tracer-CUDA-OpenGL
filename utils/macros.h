@@ -6,6 +6,7 @@
 #define CUDARAYTRACER_MACROS_H
 
 //#define TEST
+#define TESTMODEL
 #define MORTON64
 
 #endif //CUDARAYTRACER_MACROS_H
