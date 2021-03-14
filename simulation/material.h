@@ -61,6 +61,7 @@ public:
     }
 public:
     color mAlbedo;
+    int mTexID = -1;
     float mFuzz = 0;
     float mIr = 0;
     int mType = LAMBERTIAN;

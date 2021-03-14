@@ -44,11 +44,22 @@ public:
             rec.p = r.at(rec.t);
             vec3 outward_normal = (rec.p - mCenter) / mRadius;
             rec.set_face_normal(r, outward_normal);
+            getUV(outward_normal, rec.u, rec.v);
             rec.matID = mMaterialID;
             return true;
         }
         return false;
     }
+    __device__ void getUV(const point3 &p, float &u, float &v){
+        if(mType == TYPE_SPHERE){
+            float theta = acosf(-p.y());
+            float phi = atan2f(-p.z(), p.x()) + globalvar::kPiGPU;
+
+            u = phi * 0.5 * globalvar::kPiGPUInv;
+            v = theta * globalvar::kPiGPUInv;
+        }
+    }
+
     __device__ bool bounding_box(float time0, float time1, aabb& output_box) {
         if(mType == TYPE_SPHERE){
             float r = fabsf(mRadius);

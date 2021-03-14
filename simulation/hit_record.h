@@ -14,6 +14,7 @@ struct hit_record {
     vec3 normal;
     int matID = -1;
     float t = 0;
+    float u = 0, v = 0;
     bool front_face = false;
 
     __device__

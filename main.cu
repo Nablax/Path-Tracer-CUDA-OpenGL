@@ -24,7 +24,7 @@ __device__ color ray_color(const Ray& r, RenderManager *world, int depth, curand
     //printf("in ray color\n");
     color attenuation(1, 1, 1);
     while(depth-- > 0){
-        if (world->hitBvh(curRay, 0.001f, globalvar::kInfinityGPU, rec)) {
+        if (world->hit(curRay, 0.001f, globalvar::kInfinityGPU, rec)) {
             color nextAttenuation;
             if (world->mMaterials[rec.matID].scatter(curRay, rec, nextAttenuation, curRay, randState))
                 attenuation *= nextAttenuation;
@@ -132,7 +132,7 @@ void generateRandomWorldOnHost(){
     myMats.emplace_back(color(0.5, 0.5, 0.5));
     maxBox.unionBoxInPlace(myObj.back().mBoundingBox);
 
-    int sampleNum = 16;
+    int sampleNum = 0;
 
     for(int i = -sampleNum; i < sampleNum; i++){
         for(int j = -sampleNum; j < sampleNum; j++){
@@ -391,6 +391,10 @@ void processInput(GLFWwindow *window)
         hostCamera->processKeyboard(LEFT, deltaTime);
     else if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
         hostCamera->processKeyboard(RIGHT, deltaTime);
+    else if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
+        hostCamera->processKeyboard(UP, deltaTime);
+    else if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
+        hostCamera->processKeyboard(DOWN, deltaTime);
     else return;
     checkCudaErrors(cudaMemcpy(devCamera, hostCamera, sizeof(camera), cudaMemcpyHostToDevice));
 }
@@ -509,6 +513,6 @@ void renderToGL(){
 
 int main()
 {
-    renderToPng();
+    renderToGL();
 }
 

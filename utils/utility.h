@@ -19,7 +19,9 @@ namespace utils{
         FORWARD,
         BACKWARD,
         LEFT,
-        RIGHT
+        RIGHT,
+        UP,
+        DOWN
     };
 
     __host__ __device__

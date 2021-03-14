@@ -41,13 +41,17 @@ public:
     __host__ void processKeyboard(utils::directions dir, float deltaTime){
         float velocity = globalvar::kCameraSpeed * deltaTime;
         if (dir == FORWARD)
-            mPosition += mFront * velocity;
-        if (dir == BACKWARD)
             mPosition -= mFront * velocity;
+        if (dir == BACKWARD)
+            mPosition += mFront * velocity;
         if (dir == LEFT)
             mPosition -= mRight * velocity;
         if (dir == RIGHT)
             mPosition += mRight * velocity;
+        if (dir == UP)
+            mPosition += mUp * velocity;
+        if (dir == DOWN)
+            mPosition -= mUp * velocity;
         mViewportLowLeftCorner = mPosition - mHorizontalViewportSize/2 - mVerticalViewportSize/2 - mFocusDist * mFront;
     }
 
