@@ -106,12 +106,19 @@ namespace lbvh{
 #endif
             nodes[idx].left = childA;
             nodes[idx].right = childB;
+
+            __syncthreads();
+
             nodes[childA].parent = idx;
             nodes[childB].parent = idx;
         }
+    }
 
-        __syncthreads();
-
+    __global__
+    void growBBox(BVHNode* nodes, int numObjects){
+        int idx = threadIdx.x + blockIdx.x * blockDim.x;
+        if(idx >= numObjects) return;
+        int leafNodeStartIdx = numObjects - 1;
         int parentNodeIdx = nodes[leafNodeStartIdx + idx].parent;
         while(parentNodeIdx >= 0){
             BVHNode parentNode = nodes[parentNodeIdx];
@@ -125,13 +132,15 @@ namespace lbvh{
     __host__
     bool buildBVH(std::vector<CudaObj> &objList, CudaObj *objListOnDevice, aabb& maxBox, BVHNode* &lbvhArrayDevice){
         auto myMorton = morton::computeMortonOnHost(objList, maxBox);
-        checkCudaErrors(cudaFree(lbvhArrayDevice));
         int numObj = objList.size();
         checkCudaErrors(cudaMalloc((void **)&lbvhArrayDevice, (2 * numObj - 1) * sizeof(BVHNode)));
         morton::Morton* sortedMortonUnion;
         checkCudaErrors(cudaMalloc((void **)&sortedMortonUnion, myMorton.size() * sizeof(morton::Morton)));
         checkCudaErrors(cudaMemcpy(sortedMortonUnion, myMorton.data(), myMorton.size() * sizeof(morton::Morton), cudaMemcpyHostToDevice));
         generateLBVH<<<static_cast<int>(numObj / 64) + 1, 64>>>(sortedMortonUnion, lbvhArrayDevice, objListOnDevice, numObj);
+        checkCudaErrors(cudaDeviceSynchronize());
+        growBBox<<<static_cast<int>(numObj / 64) + 1, 64>>>(lbvhArrayDevice, numObj);
+        checkCudaErrors(cudaDeviceSynchronize());
         return false;
     }
 }

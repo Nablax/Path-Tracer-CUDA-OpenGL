@@ -34,9 +34,6 @@ namespace morton{
         if(maxRange.x() > 1e-7) x = (boxCenter.x() - maxBox.mMin.x()) / maxRange.x();
         if(maxRange.y() > 1e-7) y = (boxCenter.y() - maxBox.mMin.y()) / maxRange.y();
         if(maxRange.z() > 1e-7) z = (boxCenter.z() - maxBox.mMin.z()) / maxRange.z();
-#ifdef TEST
-        printf("x: %f, y: %f, z: %f\n", x, y, z);
-#endif
 
         x = fminf(fmaxf(x * 1024.0f, 0.0f), 1023.0f);
         y = fminf(fmaxf(y * 1024.0f, 0.0f), 1023.0f);
@@ -74,11 +71,6 @@ namespace morton{
         std::stable_sort(myMorton.begin(), myMorton.end(), [](const morton::Morton &a, const morton::Morton &b){
             return a.mortonCode < b.mortonCode;
         });
-#ifdef TEST
-        for(int i = 0; i < objList.size(); i++){
-            printf("%llx %d\n", myMorton[i].mortonCode64, myMorton[i].objectID);
-        }
-#endif
         return myMorton;
     }
 }

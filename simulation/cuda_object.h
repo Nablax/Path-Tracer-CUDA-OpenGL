@@ -28,6 +28,8 @@ public:
     CudaObj(const std::string& fileName, int matID): mMaterialID(matID), mType(TYPE_MESH){
         objl::Loader loader;
         loader.LoadFile(fileName);
+        auto mesh = loader.LoadedMeshes[0];
+        printf("%d", mesh.Vertices.size());
 
     }
     __device__ bool hit(const Ray& r, float t_min, float t_max, hit_record& rec) {

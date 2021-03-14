@@ -112,32 +112,28 @@ void generateRandomWorldOnHost(){
     myMats.emplace_back(color(0.5, 0.5, 0.5));
     maxBox.unionBoxInPlace(myObj.back().mBoundingBox);
 
-    int sampleNum = 0;
+    int sampleNum = 32;
 
     for(int i = -sampleNum; i < sampleNum; i++){
         for(int j = -sampleNum; j < sampleNum; j++){
             float choose_mat = randomUniformOnHost();
-            point3 center(i + 0.9f * randomUniformOnHost(), 0.2, j + 0.9f * randomUniformOnHost());
-            if ((center - point3(4, 0.2, 0)).length() > 0.9) {
-                auto rand1 = vec3(randomUniformOnHost(), randomUniformOnHost(), randomUniformOnHost());
-                auto rand2 = vec3(randomUniformOnHost(), randomUniformOnHost(), randomUniformOnHost());
-                if(choose_mat < 0.8){
-                    auto albedo = rand1 * rand2;
-                    myObj.emplace_back(center, 0.2f, myMats.size());
-                    myMats.emplace_back(albedo);
-                }
-                else if(choose_mat < 0.95){
-                    auto albedo = rand1 / 2 + vec3(0.5f, 0.5f, 0.5f);
-                    float fuzz = rand2.x() / 2;
-                    myObj.emplace_back(center, 0.2f, myMats.size());
-                    myMats.emplace_back(albedo, fuzz);
-                }
-                else{
-                    myObj.emplace_back(center, 0.2f, myMats.size());
-                    myMats.emplace_back(1.5f);
-                }
-                maxBox.unionBoxInPlace(myObj.back().mBoundingBox);
+            point3 center(i, 0.2, j);
+            auto rand1 = vec3(randomUniformOnHost(), randomUniformOnHost(), randomUniformOnHost());
+            auto rand2 = vec3(randomUniformOnHost(), randomUniformOnHost(), randomUniformOnHost());
+            if (choose_mat < 0.8) {
+                auto albedo = rand1 * rand2;
+                myObj.emplace_back(center, 0.2f, myMats.size());
+                myMats.emplace_back(albedo);
+            } else if (choose_mat < 0.95) {
+                auto albedo = rand1 / 2 + vec3(0.5f, 0.5f, 0.5f);
+                float fuzz = rand2.x() / 2;
+                myObj.emplace_back(center, 0.2f, myMats.size());
+                myMats.emplace_back(albedo, fuzz);
+            } else {
+                myObj.emplace_back(center, 0.2f, myMats.size());
+                myMats.emplace_back(1.5f);
             }
+            maxBox.unionBoxInPlace(myObj.back().mBoundingBox);
         }
     }
     myObj.emplace_back(point3(4, 1, 0), 1.0f, myMats.size());
@@ -326,7 +322,7 @@ void processInput(GLFWwindow *window)
 void initWorldStates(){
     checkCudaErrors(cudaMalloc((void **)&world, sizeof(RenderManager)));
     hostCamera = new camera(
-            vec3 (13,2,3),
+            vec3 (0,30,0.1),
             vec3(0,0,0), 20,
             globalvar::kAspectRatio,
             0, 10, 0.0, 1.0);
@@ -437,6 +433,8 @@ void renderToGL(){
 
 int main()
 {
+    //for(int i = 0; i < 10; i++)
     renderToPng();
+    //CudaObj x("../models/bunny/bunny.obj", 0);
 }
 

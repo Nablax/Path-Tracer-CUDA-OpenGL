@@ -52,7 +52,7 @@ public:
         for(int i = 0; i < 2 * mObjMaxSize - 1; i++){
             point3 tmpMin = bvh[i].box.mMin;
             point3 tmpMax = bvh[i].box.mMax;
-            printf("Node: %d, ObjID: %d, parent, left, right: %d, %d, %d, minIdx: %f %f %f, maxIdx: %f %f %f\n",
+            printf("Node: %d, ObjID: %d, parent, left, right: %d, %d, %d, minIdx: %.2f %.2f %.2f, maxIdx: %.2f %.2f %.2f\n",
                    i, bvh[i].objID, bvh[i].parent, bvh[i].left, bvh[i].right, tmpMin.x(), tmpMin.y(), tmpMin.z(),
                    tmpMax.x(), tmpMax.y(), tmpMax.z());
         }
@@ -97,7 +97,7 @@ __device__ bool RenderManager::hitBvh(const Ray &r, float t_min, float t_max, hi
         return hitAnything;
     }
 
-    const int stackNum = 64;
+    const int stackNum = 256;
     int queryStack[stackNum];
     queryStack[0] = 0;
     int stackTop = 1;
