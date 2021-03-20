@@ -24,19 +24,16 @@ __device__ color ray_color(const Ray& r, RenderManager *world, int depth, curand
     //printf("in ray color\n");
     color attenuation(1, 1, 1);
     while(depth-- > 0){
-        if (world->hitBvh(curRay, 0.001f, globalvar::kInfinityGPU, rec)) {
-            color nextAttenuation;
-            if (world->mMaterials[rec.matID].scatter(curRay, rec, nextAttenuation, curRay, randState))
-                attenuation *= nextAttenuation;
-            else attenuation = vec3();
-        }
-        else{
-            vec3 unit_direction = vectorgpu::normalize(curRay.direction());
-            float t = 0.5f * (unit_direction.y() + 1.0f);
-            return ((1.0f - t) * color(1.0, 1.0, 1.0) + t * color(0.5, 0.7, 1.0)) * attenuation;
-        }
+        if (!world->hitBvh(curRay, 0.001f, globalvar::kInfinityGPU, rec))
+            break;
+        color nextAttenuation;
+        if (!world->mMaterials[rec.matID].scatter(curRay, rec, nextAttenuation, curRay, randState))
+            return vec3();
+        attenuation *= nextAttenuation;
     }
-    return {};
+    vec3 unit_direction = vectorgpu::normalize(curRay.direction());
+    float t = 0.5f * (unit_direction.y() + 1.0f);
+    return ((1.0f - t) * color(1.0, 1.0, 1.0) + t * color(0.5, 0.7, 1.0)) * attenuation;
 }
 
 __global__ void copyObjMatsToDevice(RenderManager* world, CudaObj* myObj, int objSize, Material* myMats, int matSize){
@@ -112,7 +109,7 @@ void generateRandomWorldOnHost(){
     myMats.emplace_back(color(0.5, 0.5, 0.5));
     maxBox.unionBoxInPlace(myObj.back().mBoundingBox);
 
-    int sampleNum = 32;
+    int sampleNum = 10;
 
     for(int i = -sampleNum; i < sampleNum; i++){
         for(int j = -sampleNum; j < sampleNum; j++){
@@ -401,7 +398,7 @@ void renderToGL(){
     checkCudaErrors(cudaStreamCreateWithFlags(&stream,cudaStreamDefault));
     checkCudaErrors(cudaEventCreateWithFlags(&event,cudaEventBlockingSync));
 
-    Cuda2Gl* interop = new Cuda2Gl(2);
+    Cuda2Gl* interop = new Cuda2Gl(1);
 
     int width, height;
     glfwGetFramebufferSize(window,&width,&height);
@@ -434,7 +431,7 @@ void renderToGL(){
 int main()
 {
     //for(int i = 0; i < 10; i++)
-    renderToPng();
+    renderToGL();
     //CudaObj x("../models/bunny/bunny.obj", 0);
 }
 

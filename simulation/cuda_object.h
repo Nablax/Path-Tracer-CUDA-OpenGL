@@ -5,11 +5,12 @@
 #ifndef CUDARAYTRACER_CUDA_OBJECT_H
 #define CUDARAYTRACER_CUDA_OBJECT_H
 #include "aabb.h"
-#include "OBJ_Loader.hpp"
 #include "triangle.h"
+#include "mesh_loader.h"
 
 #define TYPE_SPHERE 1
 #define TYPE_MESH 2
+#define TYPE_SINGLE_TRIANGLE 3
 
 class CudaObj {
 public:
@@ -26,12 +27,15 @@ public:
     };
     __host__
     CudaObj(const std::string& fileName, int matID): mMaterialID(matID), mType(TYPE_MESH){
-        objl::Loader loader;
-        loader.LoadFile(fileName);
-        auto mesh = loader.LoadedMeshes[0];
-        printf("%d", mesh.Vertices.size());
+
 
     }
+
+    __host__ __device__
+    CudaObj(point3 v1, point3 v2, point3 v3){
+
+    }
+
     __device__ bool hit(const Ray& r, float t_min, float t_max, hit_record& rec) {
         if(mType == TYPE_SPHERE){
             vec3 oc = r.origin() - mCenter;
@@ -65,7 +69,7 @@ public:
             float theta = acosf(-p.y());
             float phi = atan2f(-p.z(), p.x()) + globalvar::kPiGPU;
 
-            u = phi * 0.5 * globalvar::kPiGPUInv;
+            u = phi * 0.5f * globalvar::kPiGPUInv;
             v = theta * globalvar::kPiGPUInv;
         }
     }

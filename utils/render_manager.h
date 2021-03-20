@@ -97,7 +97,7 @@ __device__ bool RenderManager::hitBvh(const Ray &r, float t_min, float t_max, hi
         return hitAnything;
     }
 
-    const int stackNum = 256;
+    const int stackNum = 64;
     int queryStack[stackNum];
     queryStack[0] = 0;
     int stackTop = 1;
