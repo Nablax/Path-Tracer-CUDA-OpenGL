@@ -63,6 +63,20 @@ namespace utils{
 
         return {newMin, newMax};
     }
+
+    __host__ __device__
+    inline void unionPoints(point3 &toUnion, point3 outerP, bool keepMin){
+        if(keepMin){
+            if(toUnion.x() > outerP.x()) toUnion.e[0] = outerP.x();
+            if(toUnion.y() > outerP.y()) toUnion.e[1] = outerP.y();
+            if(toUnion.z() > outerP.z()) toUnion.e[2] = outerP.z();
+        }
+        else{
+            if(toUnion.x() < outerP.x()) toUnion.e[0] = outerP.x();
+            if(toUnion.y() < outerP.y()) toUnion.e[1] = outerP.y();
+            if(toUnion.z() < outerP.z()) toUnion.e[2] = outerP.z();
+        }
+    }
 }
 
 

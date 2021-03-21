@@ -18,9 +18,9 @@ struct hit_record {
     bool front_face = false;
 
     __device__
-    inline void set_face_normal(const Ray& r, const vec3& outward_normal) {
-        front_face = dot(r.direction(), outward_normal) < 0;
-        normal = front_face ? outward_normal :-outward_normal;
+    inline void setFaceNormal(const Ray& r, const vec3& outwardNormal) {
+        front_face = dot(r.direction(), outwardNormal) < 0;
+        normal = front_face ? outwardNormal :-outwardNormal;
     }
 };
 

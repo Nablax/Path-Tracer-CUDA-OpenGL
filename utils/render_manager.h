@@ -134,17 +134,17 @@ __device__ bool RenderManager::hitBvh(const Ray &r, float t_min, float t_max, hi
     return hitAnything;
 }
 
-__device__ bool RenderManager::unionAllBox(float time0, float time1, aabb &output_box) const {
-    if(mObjLastIdx <= 0) return false;
-    aabb tmpBox;
-    if(!mObjects[0].bounding_box(time0, time1, tmpBox)) return false;
-    output_box = tmpBox;
-    for(int i = 1; i < mObjLastIdx; i++){
-        if(!mObjects[0].bounding_box(time0, time1, tmpBox)) return false;
-        output_box = utils::unionBox(output_box, tmpBox);
-    }
-    return true;
-}
+//__device__ bool RenderManager::unionAllBox(float time0, float time1, aabb &output_box) const {
+//    if(mObjLastIdx <= 0) return false;
+//    aabb tmpBox;
+//    if(!mObjects[0].bounding_box(time0, time1, tmpBox)) return false;
+//    output_box = tmpBox;
+//    for(int i = 1; i < mObjLastIdx; i++){
+//        if(!mObjects[0].bounding_box(time0, time1, tmpBox)) return false;
+//        output_box = utils::unionBox(output_box, tmpBox);
+//    }
+//    return true;
+//}
 
 
 #endif //CUDARAYTRACER_RENDER_MANAGER_H

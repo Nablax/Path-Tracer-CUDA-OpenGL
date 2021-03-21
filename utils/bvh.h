@@ -77,7 +77,7 @@ namespace lbvh{
         int curObjID = sortedMortonUnion[idx].objectID;
         BVHNode curLeafNode;
         curLeafNode.objID = curObjID;
-        obj[curObjID].bounding_box(0, 0, curLeafNode.box);
+        curLeafNode.box = obj[curObjID].mBoundingBox;
         nodes[leafNodeStartIdx + idx] = curLeafNode;
         if(idx < numObjects - 1){
             BVHNode curInternalNode;

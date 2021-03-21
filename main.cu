@@ -18,17 +18,17 @@ dim3 blocks(globalvar::kBlockX, globalvar::kBlockY);
 dim3 threads(globalvar::kThreadX, globalvar::kThreadY);
 double deltaTime = 0;
 
-__device__ color ray_color(const Ray& r, RenderManager *world, int depth, curandState *randState) {
+__device__ color rayTracing(const Ray& r, RenderManager *world, int depth, curandState *randState) {
     hit_record rec;
     Ray curRay = r;
     //printf("in ray color\n");
     color attenuation(1, 1, 1);
     while(depth-- > 0){
-        if (!world->hitBvh(curRay, 0.001f, globalvar::kInfinityGPU, rec))
+        if (!world->hit(curRay, 0.001f, globalvar::kInfinityGPU, rec))
             break;
         color nextAttenuation;
         if (!world->mMaterials[rec.matID].scatter(curRay, rec, nextAttenuation, curRay, randState))
-            return vec3();
+            return {};
         attenuation *= nextAttenuation;
     }
     vec3 unit_direction = vectorgpu::normalize(curRay.direction());
@@ -42,13 +42,17 @@ __global__ void copyObjMatsToDevice(RenderManager* world, CudaObj* myObj, int ob
     world->mMatMaxSize = world->mMatLastIdx = matSize;
     world->mObjMaxSize = world->mObjLastIdx = objSize;
 }
+
+__global__ void copyTrianglesToDevice(CudaObj* myObj, int idx, Triangle *myTri, int triCount){
+    myObj[idx].mTriangles = myTri;
+    myObj[idx].mTriCount = triCount;
+}
 __global__ void copyBVHToDevice(RenderManager* world, BVHNode* bvh){
     world->bvh = bvh;
 #ifdef TEST
     world->printBvh();
 #endif
 }
-
 
 void generateTestWorldOnHost(){
     std::vector<CudaObj> myObj;
@@ -63,22 +67,12 @@ void generateTestWorldOnHost(){
 //    myMats.emplace_back(color(1, 0, 0));
 //    maxBox.unionBoxInPlace(myObj.back().mBoundingBox);
 
+    point3 v0, v1, v2;
+    v0 = vec3 (-2, -1, 0);
+    v1 = vec3 (2 ,-1 ,0);
+    v2 = vec3 (0, 2, 0);
 
-    myObj.emplace_back(point3(2, 1, 0), 1.0f, myMats.size());
-    maxBox.unionBoxInPlace(myObj.back().mBoundingBox);
-    myObj.emplace_back(point3(2, 1, 0), -0.9f, myMats.size());
-    myMats.emplace_back(1.5f);
-
-
-    myObj.emplace_back(point3(-2, 1, 0), 1.0f, myMats.size());
-    myMats.emplace_back(color(1, 0, 0.4));
-    maxBox.unionBoxInPlace(myObj.back().mBoundingBox);
-
-    myObj.emplace_back(point3(0, 1, 0), 1.0f, myMats.size());
-    myMats.emplace_back(color(0.7, 0.6, 0.5), 0.0f);
-    maxBox.unionBoxInPlace(myObj.back().mBoundingBox);
-
-    myObj.emplace_back(point3(2, -1, 0), 1.0f, myMats.size());
+    myObj.emplace_back(v0, v1, v2, myMats.size());
     myMats.emplace_back(color(1, 0, 0));
     maxBox.unionBoxInPlace(myObj.back().mBoundingBox);
 
@@ -86,13 +80,28 @@ void generateTestWorldOnHost(){
     myMats.emplace_back(color(0, 0, 1));
     maxBox.unionBoxInPlace(myObj.back().mBoundingBox);
 
+    myObj.emplace_back(point3(1, 1, 1), 1.0f, myMats.size());
+    myMats.emplace_back(1.5f);
+    maxBox.unionBoxInPlace(myObj.back().mBoundingBox);
+
     CudaObj *myObjCuda;
     Material *myMatsCuda;
+    Triangle *myTriangles;
     checkCudaErrors(cudaMalloc((void**)&myObjCuda, myObj.size() * sizeof(CudaObj)));
     checkCudaErrors(cudaMalloc((void**)&myMatsCuda, myMats.size() * sizeof(Material)));
 
     checkCudaErrors(cudaMemcpy(myObjCuda, myObj.data(), myObj.size() * sizeof(CudaObj), cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(myMatsCuda, myMats.data(), myMats.size() * sizeof(Material), cudaMemcpyHostToDevice));
+
+    for(int i = 0; i < myObj.size(); i++){
+        if(myObj[i].mTriCount > 0){
+            checkCudaErrors(cudaMalloc((void**)&myTriangles, myObj[i].mTriCount * sizeof(Triangle)));
+            checkCudaErrors(cudaMemcpy(myTriangles, myObj[i].mTriangles, myObj[i].mTriCount * sizeof(Triangle), cudaMemcpyHostToDevice));
+            copyTrianglesToDevice<<<1, 1>>>(myObjCuda, i, myTriangles, myObj[i].mTriCount);
+
+            checkCudaErrors(cudaDeviceSynchronize());
+        }
+    }
 
     copyObjMatsToDevice<<<1, 1>>>(world, myObjCuda, myObj.size(), myMatsCuda, myMats.size());
     checkCudaErrors(cudaDeviceSynchronize());
@@ -190,7 +199,7 @@ __global__ void render(vec3 *frameBuffer, int maxWidth, int maxHeight, int spp, 
         float v = (row + curand_uniform(&randState[curPixel])) * maxHeightInv;
         Ray r = myCamera->get_ray(u, v, randState);
         //printf("%f %f %f\n", u, v, myCamera->fl);
-        finalColor += ray_color(r, world, maxDepth, &randState[curPixel]);
+        finalColor += rayTracing(r, world, maxDepth, &randState[curPixel]);
     }
     float r = sqrtf(finalColor.r() * sppInv);
     float g = sqrtf(finalColor.g() * sppInv);
@@ -234,7 +243,7 @@ __global__ void renderBySurface(int maxWidth, int maxHeight, int spp, int maxDep
         float v = (row + curand_uniform(&randState[curPixel])) * maxHeightInv;
         Ray r = myCamera->get_ray(u, v, randState);
         //printf("%f %f %f\n", u, v, myCamera->fl);
-        color += ray_color(r, world, maxDepth, &randState[curPixel]);
+        color += rayTracing(r, world, maxDepth, &randState[curPixel]);
     }
     rgba.r = sqrtf(color.r() * sppInv) * 255;
     rgba.g = sqrtf(color.g() * sppInv) * 255;
@@ -334,10 +343,10 @@ void initWorldStates(){
 
     //generateRandomWorld<<<1, 1>>>(world, devStates);
     //generateRandomWorldOnHost();
-#ifdef TEST
+#if defined(TEST) || defined(TESTWORLDONLY)
     generateTestWorldOnHost();
     hostCamera = new camera(
-            vec3 (0,1,15),
+            vec3 (0,0,15),
             vec3(0,0,0), 20,
             globalvar::kAspectRatio,
             0, 10, 0.0, 1.0);
@@ -431,7 +440,7 @@ void renderToGL(){
 int main()
 {
     //for(int i = 0; i < 10; i++)
-    renderToGL();
+    renderToPng();
     //CudaObj x("../models/bunny/bunny.obj", 0);
 }
 
