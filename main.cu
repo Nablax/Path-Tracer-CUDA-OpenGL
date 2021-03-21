@@ -16,7 +16,7 @@ curandState *devStates;
 BVHNode *lbvhArrayDevice;
 dim3 blocks(globalvar::kBlockX, globalvar::kBlockY);
 dim3 threads(globalvar::kThreadX, globalvar::kThreadY);
-double deltaTime = 0;
+float deltaTime = 0;
 
 __device__ color rayTracing(const Ray& r, RenderManager *world, int depth, curandState *randState) {
     hit_record rec;
@@ -24,7 +24,7 @@ __device__ color rayTracing(const Ray& r, RenderManager *world, int depth, curan
     //printf("in ray color\n");
     color attenuation(1, 1, 1);
     while(depth-- > 0){
-        if (!world->hit(curRay, 0.001f, globalvar::kInfinityGPU, rec))
+        if (!world->hitBvh(curRay, 0.001f, globalvar::kInfinityGPU, rec))
             break;
         color nextAttenuation;
         if (!world->mMaterials[rec.matID].scatter(curRay, rec, nextAttenuation, curRay, randState))
@@ -68,21 +68,29 @@ void generateTestWorldOnHost(){
 //    maxBox.unionBoxInPlace(myObj.back().mBoundingBox);
 
     point3 v0, v1, v2;
-    v0 = vec3 (-2, -1, 0);
-    v1 = vec3 (2 ,-1 ,0);
+    v0 = vec3 (0, -2, 0);
+    v1 = vec3 (1 ,0 ,5);
     v2 = vec3 (0, 2, 0);
 
     myObj.emplace_back(v0, v1, v2, myMats.size());
-    myMats.emplace_back(color(1, 0, 0));
+    myMats.emplace_back(color(0.7, 0.6, 0.5), 0);
+    maxBox.unionBoxInPlace(myObj.back().mBoundingBox);
+
+    v0 = vec3 (0, -2, 0);
+    v1 = vec3 (-1 ,0 ,5);
+    v2 = vec3 (0, 2, 0);
+
+    myObj.emplace_back(v0, v1, v2, myMats.size());
+    myMats.emplace_back(color(0.7, 0.6, 0.5), 0);
     maxBox.unionBoxInPlace(myObj.back().mBoundingBox);
 
     myObj.emplace_back(point3(1005, 0, 0), 1000.0f, myMats.size());
     myMats.emplace_back(color(0, 0, 1));
     maxBox.unionBoxInPlace(myObj.back().mBoundingBox);
 
-    myObj.emplace_back(point3(1, 1, 1), 1.0f, myMats.size());
-    myMats.emplace_back(1.5f);
-    maxBox.unionBoxInPlace(myObj.back().mBoundingBox);
+//    myObj.emplace_back(point3(0, 0, 0), 1.0f, myMats.size());
+//    myMats.emplace_back(color(0.7, 0.6, 0.5), 0);
+//    maxBox.unionBoxInPlace(myObj.back().mBoundingBox);
 
     CudaObj *myObjCuda;
     Material *myMatsCuda;
@@ -98,7 +106,6 @@ void generateTestWorldOnHost(){
             checkCudaErrors(cudaMalloc((void**)&myTriangles, myObj[i].mTriCount * sizeof(Triangle)));
             checkCudaErrors(cudaMemcpy(myTriangles, myObj[i].mTriangles, myObj[i].mTriCount * sizeof(Triangle), cudaMemcpyHostToDevice));
             copyTrianglesToDevice<<<1, 1>>>(myObjCuda, i, myTriangles, myObj[i].mTriCount);
-
             checkCudaErrors(cudaDeviceSynchronize());
         }
     }
@@ -218,13 +225,9 @@ union ColorRGBA
     };
 };
 
-
-bool goRender = true;
-
 __global__ void renderBySurface(int maxWidth, int maxHeight, int spp, int maxDepth,
                        camera *myCamera,
-                       RenderManager *world, curandState *randState, bool goRender){
-    if(!goRender) return;
+                       RenderManager *world, curandState *randState){
     //printf("%d %d %d %d %d %d\n", blockDim.x, threadIdx.x, threadIdx.x, blockDim.y, threadIdx.y, threadIdx.y);
     unsigned col = threadIdx.x + blockIdx.x * blockDim.x;
     unsigned row = threadIdx.y + blockIdx.y * blockDim.y;
@@ -423,7 +426,7 @@ void renderToGL(){
 
         renderBySurface<<<blocks, threads>>>(globalvar::kFrameWidth, globalvar::kFrameHeight,
                                              globalvar::kSpp, globalvar::kMaxDepth,
-                                             devCamera, world, devStates, goRender);
+                                             devCamera, world, devStates);
 
         interop->unMapGraphicResource(stream);
         interop->blitFramebuffer();
@@ -440,7 +443,7 @@ void renderToGL(){
 int main()
 {
     //for(int i = 0; i < 10; i++)
-    renderToPng();
+    renderToGL();
     //CudaObj x("../models/bunny/bunny.obj", 0);
 }
 

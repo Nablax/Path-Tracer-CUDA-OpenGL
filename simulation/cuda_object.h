@@ -73,14 +73,14 @@ public:
             point3 s1 = vectorgpu::cross(r.direction(), e2);
             float s1e1inv = vectorgpu::dot(s1, e1);
             if(s1e1inv == 0) return false;
-            point3 s = r.origin() - mTriangles[1].mVertex[0];
+            point3 s = r.origin() - mTriangles[0].mVertex[0];
             point3 s2 = vectorgpu::cross(s, e1);
             s1e1inv = 1.0f / s1e1inv;
             float t = vectorgpu::dot(s2, e2) * s1e1inv;
             float b1 = vectorgpu::dot(s1, s) * s1e1inv;
             float b2 = vectorgpu::dot(s2, r.direction()) * s1e1inv;
 
-            if(b1 >= 1 || b1 <= 0 || b2 >= 1 || b2 <= 0 || (1 - b1 - b2) >= 1 || (1 - b1 - b2) <= 0 || t <= t_min || t >= t_max)
+            if(b1 >= 1 || b1 <= 0 || b2 >= 1 || b2 <= 0 || b1 + b2 <= 0 || b1 + b2 >= 1|| t <= t_min || t >= t_max)
                 return false;
             rec.t = t;
             rec.p = r.at(t);
@@ -90,7 +90,8 @@ public:
         }
         return false;
     }
-    __device__ void getUV(const point3 &p, float &u, float &v){
+
+    __device__ inline void getUV(const point3 &p, float &u, float &v){
         if(mType == TYPE_SPHERE){
             float theta = acosf(-p.y());
             float phi = atan2f(-p.z(), p.x()) + globalvar::kPiGPU;
