@@ -107,6 +107,17 @@ namespace utils{
         return distribution(generator);
     }
 
+    __host__ inline vec3 randomInUnitSphereDiscard(){
+        vec3 res;
+        do{
+            res = 2 * vec3(
+                    randomUniformOnHost() - 0.5f,
+                    randomUniformOnHost() - 0.5f,
+                    randomUniformOnHost() - 0.5f);
+        }while(res.length_squared() >= 1.0f);
+        return res;
+    }
+
     __device__ int sign(int x){
         return (x > 0) - (x < 0);
     }

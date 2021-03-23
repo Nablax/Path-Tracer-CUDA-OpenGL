@@ -111,7 +111,7 @@ public:
 //    }
     __host__ __device__
     ~CudaObj(){
-        delete []mTriangles;
+        //delete []mTriangles;
     }
     Triangle *mTriangles;
     int mTriCount = 0;

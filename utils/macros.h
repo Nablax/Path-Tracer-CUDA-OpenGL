@@ -6,7 +6,8 @@
 #define CUDARAYTRACER_MACROS_H
 
 // #define TEST
-#define TESTWORLDONLY
+// #define TESTWORLDONLY
+#define TRIANGLEWORLD
 #define TESTMODEL
 #define MORTON64
 

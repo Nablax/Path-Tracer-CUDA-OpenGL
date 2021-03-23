@@ -116,6 +116,85 @@ void generateTestWorldOnHost(){
     copyBVHToDevice<<<1, 1>>>(world, lbvhArrayDevice);
 }
 
+void generateTriangleWorldOnHost(){
+    std::vector<CudaObj> myObj;
+    std::vector<Material> myMats;
+    aabb maxBox;
+    int totalCount = 600;
+    myObj.reserve(totalCount + 1);
+    float radius = 10;
+
+    point3 v0, v1, v2;
+
+    for(int i = 0; i < totalCount; i++){
+        float choose_mat = randomUniformOnHost() * 2;
+        point3 center = randomInUnitSphereDiscard() * radius;
+        auto rand1 = vec3(randomUniformOnHost(), randomUniformOnHost(), randomUniformOnHost());
+        auto rand2 = vec3(randomUniformOnHost(), randomUniformOnHost(), randomUniformOnHost());
+
+        if(choose_mat < 1){
+            myObj.emplace_back(center, 0.5f, myMats.size());
+            if (choose_mat < 0.6) {
+                auto albedo = rand1 * rand2;
+                myMats.emplace_back(albedo);
+            } else if (choose_mat < 0.9) {
+                auto albedo = rand1 / 2 + vec3(0.5f, 0.5f, 0.5f);
+                float fuzz = rand2.x() / 2;
+                myMats.emplace_back(albedo, fuzz);
+            } else{
+                myMats.emplace_back(1.5f);
+            }
+        }
+        else{
+            v0 = randomInUnitSphereDiscard() + center;
+            v1 = randomInUnitSphereDiscard() + center;
+            v2 = randomInUnitSphereDiscard() + center;
+            myObj.emplace_back(v0, v1, v2, myMats.size());
+            if(choose_mat < 1.6){
+                auto albedo = rand1 * rand2;
+                myMats.emplace_back(albedo);
+            }
+            else if(choose_mat < 1.9){
+                auto albedo = rand1 / 2 + vec3(0.5f, 0.5f, 0.5f);
+                float fuzz = rand2.x() / 2;
+                myMats.emplace_back(albedo, fuzz);
+            }
+            else{
+                myMats.emplace_back(1.5f);
+            }
+        }
+        maxBox.unionBoxInPlace(myObj.back().mBoundingBox);
+    }
+
+    myObj.emplace_back(point3(0, 0, -1010), 1000.0f, myMats.size());
+    myMats.emplace_back(color(0.5, 0.5, 0.5));
+    maxBox.unionBoxInPlace(myObj.back().mBoundingBox);
+
+    CudaObj *myObjCuda;
+    Material *myMatsCuda;
+    Triangle *myTriangles;
+    checkCudaErrors(cudaMalloc((void**)&myObjCuda, myObj.size() * sizeof(CudaObj)));
+    checkCudaErrors(cudaMalloc((void**)&myMatsCuda, myMats.size() * sizeof(Material)));
+
+    checkCudaErrors(cudaMemcpy(myObjCuda, myObj.data(), myObj.size() * sizeof(CudaObj), cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpy(myMatsCuda, myMats.data(), myMats.size() * sizeof(Material), cudaMemcpyHostToDevice));
+
+    for(int i = 0; i < myObj.size(); i++){
+        if(myObj[i].mTriCount > 0){
+            checkCudaErrors(cudaMalloc((void**)&myTriangles, myObj[i].mTriCount * sizeof(Triangle)));
+            checkCudaErrors(cudaMemcpy(myTriangles, myObj[i].mTriangles, myObj[i].mTriCount * sizeof(Triangle), cudaMemcpyHostToDevice));
+            delete [] myObj[i].mTriangles;
+            copyTrianglesToDevice<<<1, 1>>>(myObjCuda, i, myTriangles, myObj[i].mTriCount);
+            checkCudaErrors(cudaDeviceSynchronize());
+        }
+    }
+
+    copyObjMatsToDevice<<<1, 1>>>(world, myObjCuda, myObj.size(), myMatsCuda, myMats.size());
+    checkCudaErrors(cudaDeviceSynchronize());
+    lbvh::buildBVH(myObj, myObjCuda, maxBox, lbvhArrayDevice);
+    copyBVHToDevice<<<1, 1>>>(world, lbvhArrayDevice);
+}
+
 void generateRandomWorldOnHost(){
     std::vector<CudaObj> myObj;
     std::vector<Material> myMats;
@@ -354,6 +433,14 @@ void initWorldStates(){
             globalvar::kAspectRatio,
             0, 10, 0.0, 1.0);
     checkCudaErrors(cudaMemcpy(devCamera, hostCamera, sizeof(camera), cudaMemcpyHostToDevice));
+#elif defined(TRIANGLEWORLD)
+    generateTriangleWorldOnHost();
+    hostCamera = new camera(
+            vec3 (0,0,25),
+            vec3(0,0,0), 40,
+            globalvar::kAspectRatio,
+            0, 10, 0.0, 1.0);
+    checkCudaErrors(cudaMemcpy(devCamera, hostCamera, sizeof(camera), cudaMemcpyHostToDevice));
 #else
     generateRandomWorldOnHost();
 #endif
@@ -443,7 +530,7 @@ void renderToGL(){
 int main()
 {
     //for(int i = 0; i < 10; i++)
-    renderToGL();
+    renderToPng();
     //CudaObj x("../models/bunny/bunny.obj", 0);
 }
 
